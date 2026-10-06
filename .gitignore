@@ -17,3 +17,6 @@ data/words.db
 .idea/
 .vscode/
 .claude/
+
+# AI提示词要求
+要求.md

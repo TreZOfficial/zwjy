@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}藏语词汇工具{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="/">
+        <span class="brand-tibetan">བོད་ཡིག</span>
+        <span class="brand-text">藏语词汇录入与导出</span>
+      </a>
+      <nav class="nav">
+        <a href="/">词条列表</a>
+        <a href="/words/new">新增词条</a>
+        <a href="/export">导出 Word</a>
+        <a href="/backup/export">备份 JSON</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    {% if msg %}
+      <div class="flash flash-{{ level or 'ok' }}">
+        <span>{{ msg }}</span>
+        <button type="button" class="flash-close" onclick="this.parentElement.remove()" title="关闭">×</button>
+      </div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      本地工具 · 数据保存在本机 <code>data/words.db</code> · 共 {{ total_count }} 条词条
+    </div>
+  </footer>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

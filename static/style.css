@@ -1,0 +1,425 @@
+/* ==========================================================================
+   藏语词汇录入与导出工具 —— 样式表
+   配色取自藏地常见的赭红与酥油黄，整体保持素净，方便长时间阅读藏文。
+   ========================================================================== */
+
+:root {
+  --accent: #8c3b2b;
+  --accent-soft: #b9614c;
+  --accent-bg: #fbf3ef;
+  --ink: #23201d;
+  --ink-soft: #6b6259;
+  --line: #e2dcd4;
+  --bg: #f6f4f0;
+  --card: #ffffff;
+  --ok: #2f7a4d;
+  --ok-bg: #eaf6ee;
+  --warn: #9a6a00;
+  --warn-bg: #fdf4e0;
+  --err: #b3261e;
+  --err-bg: #fdecea;
+  --tibetan-font: "Microsoft Himalaya", "Noto Sans Tibetan", "Jomolhari",
+    "Kailasa", "Tibetan Machine Uni", serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+code {
+  background: #efeae4;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* ---------------------------------------------------------------- 页头 */
+.site-header {
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+}
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  flex-wrap: wrap;
+}
+.brand { display: flex; align-items: baseline; gap: 10px; color: var(--ink); }
+.brand:hover { text-decoration: none; }
+.brand-tibetan {
+  font-family: var(--tibetan-font);
+  font-size: 26px;
+  color: var(--accent);
+  line-height: 1.1;
+}
+.brand-text { font-size: 15px; font-weight: 600; letter-spacing: .5px; }
+.nav { display: flex; gap: 18px; flex-wrap: wrap; }
+.nav a { color: var(--ink-soft); font-size: 14px; }
+.nav a:hover { color: var(--accent); }
+
+main.wrap { padding-top: 22px; padding-bottom: 40px; }
+
+.site-footer {
+  border-top: 1px solid var(--line);
+  padding: 16px 0 30px;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+}
+
+/* ---------------------------------------------------------------- 提示条 */
+.flash {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  border: 1px solid transparent;
+}
+.flash-ok { background: var(--ok-bg); color: var(--ok); border-color: #c8e6d3; }
+.flash-warn { background: var(--warn-bg); color: var(--warn); border-color: #f0dcae; }
+.flash-close {
+  background: none; border: none; cursor: pointer;
+  font-size: 18px; line-height: 1; color: inherit; opacity: .6;
+}
+.flash-close:hover { opacity: 1; }
+
+/* ---------------------------------------------------------------- 卡片 */
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+.card > h2:first-child, .card > h3:first-child { margin-top: 0; }
+.card h2 { font-size: 16px; margin: 0 0 14px; }
+.card h3 { font-size: 14.5px; margin: 0 0 12px; }
+
+.page-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.page-head h1 { font-size: 20px; margin: 0; }
+.page-head .sub { color: var(--ink-soft); font-size: 13px; }
+
+/* ---------------------------------------------------------------- 表单 */
+label { font-size: 13px; color: var(--ink-soft); }
+
+input[type="text"], input[type="search"], select, textarea {
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 9px;
+  width: 100%;
+}
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid rgba(140, 59, 43, .18);
+  border-color: var(--accent-soft);
+}
+textarea { resize: vertical; min-height: 62px; }
+
+/* 组件下拉框。
+   字号要开得比正文大不少：Microsoft Himalaya / Noto Sans Tibetan 这类藏文字体
+   为了把三四层高的辅音堆叠塞进一个字身，单个基字只占 em 的 40% 左右——
+   同样写 17px，中文看着正常，藏文看着只有 6~7px，基本看不清。
+   反过来，字号一大，选项里若有七八个汉字就会撑破下拉框，
+   所以下加字等「无」选项的文案都压缩成了一个「无」字（见 tibetan.build_component_options）。 */
+select.tibetan-select {
+  font-family: var(--tibetan-font);
+  font-size: 24px;
+  line-height: 1.3;
+  min-height: 40px;
+  padding: 3px 8px;
+}
+
+/* 直接输入藏文的文本框（用于没有音节组件的词条） */
+input.tibetan-input {
+  font-family: var(--tibetan-font);
+  font-size: 22px;
+  line-height: 1.6;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  border-radius: 7px;
+  padding: 7px 14px;
+  font-size: 13.5px;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--accent-soft); color: var(--accent); }
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn-primary:hover { background: #7a3225; border-color: #7a3225; color: #fff; }
+.btn-danger:hover { border-color: var(--err); color: var(--err); }
+.btn-sm { padding: 4px 10px; font-size: 12.5px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ---------------------------------------------------------------- 列表页 */
+.search-bar {
+  display: grid;
+  grid-template-columns: minmax(200px, 2fr) minmax(130px, 1fr) minmax(150px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+.field { display: flex; flex-direction: column; gap: 4px; }
+
+.table-scroll { overflow-x: auto; }
+table.words {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+table.words th, table.words td {
+  border-bottom: 1px solid var(--line);
+  padding: 9px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+table.words th {
+  background: #faf8f5;
+  color: var(--ink-soft);
+  font-weight: 600;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+table.words tr:hover td { background: #fcfaf8; }
+table.words td.col-check { width: 34px; }
+table.words td.col-actions { white-space: nowrap; }
+
+.tibetan {
+  font-family: var(--tibetan-font);
+  font-size: 26px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.tibetan-sm { font-family: var(--tibetan-font); font-size: 19px; line-height: 1.5; }
+
+.tag {
+  display: inline-block;
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 1px 9px;
+  font-size: 12px;
+  margin: 0 4px 3px 0;
+}
+.muted { color: var(--ink-soft); }
+.nowrap { white-space: nowrap; }
+
+.empty-state {
+  text-align: center;
+  padding: 44px 20px;
+  color: var(--ink-soft);
+}
+.empty-state .tibetan { font-size: 40px; color: var(--accent-soft); display: block; margin-bottom: 10px; }
+
+details.panel {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 12px 16px;
+  background: #fdfcfb;
+  margin-top: 16px;
+}
+details.panel > summary {
+  cursor: pointer;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+details.panel[open] > summary { margin-bottom: 12px; }
+
+/* ---------------------------------------------------------------- 编辑页 */
+.layout-edit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .layout-edit { grid-template-columns: 1fr; }
+  .search-bar { grid-template-columns: 1fr 1fr; }
+}
+
+.syllable-card {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 14px;
+  margin-bottom: 12px;
+  background: #fdfcfb;
+}
+.syllable-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.syllable-head .index {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.syllable-grid {
+  display: grid;
+  /* 下拉框放大字号后要相应加宽，不然「无」和藏文会被截断 */
+  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+  gap: 10px;
+}
+.syllable-grid .field > label { font-size: 12px; }
+.syllable-preview {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+  font-family: var(--tibetan-font);
+  font-size: 22px;
+  color: var(--ink-soft);
+  min-height: 30px;
+}
+
+/* 下加字槽：默认只有一层，点「+ 加一层」才向下生长 */
+.field-subjoined .subjoined-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.subjoined-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.subjoined-row select { flex: 1; min-width: 0; }
+.btn-remove-subjoined {
+  flex: none;
+  padding: 4px 8px;
+  line-height: 1;
+  font-size: 14px;
+}
+.btn-add-subjoined {
+  margin-top: 5px;
+  width: 100%;
+  justify-content: center;
+  font-size: 12px;
+  padding: 3px 8px;
+}
+
+.preview-box {
+  position: sticky;
+  top: 16px;
+}
+.preview-tibetan {
+  font-family: var(--tibetan-font);
+  font-size: 42px;
+  line-height: 1.5;
+  text-align: center;
+  padding: 20px 10px;
+  background: var(--accent-bg);
+  border-radius: 9px;
+  min-height: 96px;
+  word-break: break-all;
+}
+.preview-label {
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 6px;
+}
+
+.issues { margin-top: 14px; }
+.issue {
+  border-radius: 7px;
+  padding: 8px 11px;
+  font-size: 12.5px;
+  margin-bottom: 7px;
+  border: 1px solid transparent;
+}
+.issue-warning { background: var(--warn-bg); color: var(--warn); border-color: #f0dcae; }
+.issue-error { background: var(--err-bg); color: var(--err); border-color: #f5c9c5; }
+
+.form-row { margin-bottom: 14px; }
+.form-row > label { display: block; margin-bottom: 4px; }
+.hint { font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
+
+.checkbox-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.checkbox-line input { width: auto; }
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding-top: 6px;
+  flex-wrap: wrap;
+}
+
+/* ---------------------------------------------------------------- 导出页 */
+.radio-group { display: flex; gap: 20px; flex-wrap: wrap; }
+.radio-group label { display: flex; align-items: center; gap: 6px; color: var(--ink); font-size: 13.5px; }
+.radio-group input { width: auto; }
+
+.export-preview {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.export-preview table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.export-preview th, .export-preview td {
+  border-bottom: 1px solid var(--line);
+  padding: 7px 10px;
+  text-align: left;
+}
+.export-preview th { background: #faf8f5; color: var(--ink-soft); font-size: 12px; }
+
+.scope-badge {
+  display: inline-block;
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 2px 10px;
+  font-size: 13px;
+  font-weight: 600;
+}

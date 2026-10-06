@@ -1,0 +1,6922 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>藏语单词记忆</title>
+<!--
+  藏语单词记忆 —— 单文件离线应用
+  ==============================
+
+  * 纯离线：不请求任何外部资源，双击本文件即可用
+  * 词库内嵌在下面那段 id 为 wordbank 的 JSON 里
+  * 学习进度存在 localStorage（键名 zwjy-memory:v1）
+
+  词库不要手改，用同目录的 update_wordbank.py 生成：
+      python update_wordbank.py 期中词汇库.json
+
+  注意：这段注释里刻意不写出 script 标签的字面样子，
+  否则解析 HTML 的脚本（比如更新工具、测试脚手架）会把它当成真的标签。
+-->
+<style>
+/* ==========================================================================
+   主题变量
+   ========================================================================== */
+:root {
+  --accent: #8c3b2b;
+  --accent-soft: #b9614c;
+  --accent-bg: #fbf3ef;
+  --ink: #23201d;
+  --ink-soft: #6b6259;
+  --line: #e2dcd4;
+  --bg: #f6f4f0;
+  --card: #ffffff;
+  --ok: #2f7a4d;
+  --ok-bg: #eaf6ee;
+  --err: #b3261e;
+  --err-bg: #fdecea;
+  --warn: #9a6a00;
+  --warn-bg: #fdf4e0;
+  --tibetan-font: "Microsoft Himalaya", "Noto Sans Tibetan", "Jomolhari",
+    "Kailasa", "Tibetan Machine Uni", serif;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.wrap { max-width: 900px; margin: 0 auto; padding: 0 12px; }
+
+/* ---------------------------------------------------------------- 顶栏 */
+header {
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.head-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+}
+.brand { font-weight: 700; font-size: 16px; }
+.brand span { font-family: var(--tibetan-font); font-size: 22px; color: var(--accent); }
+
+/* ---------------------------------------------------------------- 通用 */
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  min-height: 42px;              /* 手机上要够大才好点 */
+}
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:active { background: #7a3225; }
+.btn-ok { background: var(--ok); border-color: var(--ok); color: #fff; }
+.btn-err { background: var(--err); border-color: var(--err); color: #fff; }
+.btn-sm { padding: 5px 10px; min-height: 34px; font-size: 13px; }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn:disabled:active { transform: none; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.muted { color: var(--ink-soft); }
+.hint { font-size: 13px; color: var(--ink-soft); }
+h2 { font-size: 16px; margin: 0 0 10px; }
+h3 { font-size: 14px; margin: 16px 0 8px; color: var(--ink-soft); }
+.hidden { display: none !important; }
+
+/* 藏文显示。字号要大：藏文字体为了容纳多层堆叠，单字只占字身四成左右 */
+.tib {
+  font-family: var(--tibetan-font);
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------- 首页 */
+.mode-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mode-btn {
+  border: 2px solid var(--line);
+  background: var(--card);
+  border-radius: 10px;
+  padding: 14px 10px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--ink);
+  text-align: center;
+}
+.mode-btn.on { border-color: var(--accent); background: var(--accent-bg); }
+.mode-btn small { display: block; font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
+
+.tag-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.tag-btn {
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--ink);
+}
+.tag-btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tag-btn small { opacity: .75; margin-left: 4px; }
+
+.switch { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 10px 0; }
+.switch input { width: auto; }
+
+/* ---------------------------------------------------------------- 答题 */
+.q-head { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-soft); }
+.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 6px 0 14px; }
+.bar > i { display: block; height: 100%; background: var(--accent); transition: width .25s; }
+
+.prompt { text-align: center; padding: 18px 8px; }
+.prompt .zh { font-size: 30px; font-weight: 700; letter-spacing: 2px; }
+.prompt .bo { font-family: var(--tibetan-font); font-size: 52px; font-weight: 600; }
+
+.answer-box {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  min-height: 66px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--tibetan-font);
+  font-size: 34px;
+  font-weight: 600;
+  word-break: break-all;
+}
+.answer-box.empty { color: var(--ink-soft); font-family: inherit; font-size: 14px; font-weight: 400; }
+
+/* 藏译汉：输入中文释义 */
+.meaning-input {
+  width: 100%;
+  margin-top: 10px;
+  font-family: inherit;
+  font-size: 20px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--ink);
+  min-height: 52px;
+}
+.meaning-input:focus { outline: 2px solid rgba(140, 59, 43, .18); border-color: var(--accent-soft); }
+
+/* ---------------------------------------------------------------- 软键盘 */
+.kb-preview-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.kb-preview {
+  font-family: var(--tibetan-font);
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--accent);
+  min-height: 36px;
+}
+.kb-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.kb-tab {
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.kb-tab.on { background: var(--accent-bg); border-color: var(--accent-soft); color: var(--accent); }
+.kb-tab .set {
+  font-family: var(--tibetan-font);
+  font-size: 17px;
+  font-weight: 600;
+}
+.kb-tab .set.none { font-family: inherit; font-size: 11px; color: var(--ink-soft); }
+
+.kb-keys {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
+  gap: 6px;
+}
+.key {
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: 8px;
+  min-height: 46px;
+  font-size: 15px;
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+}
+.key.bo { font-family: var(--tibetan-font); font-size: 26px; font-weight: 600; }
+.key.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.key:active { transform: scale(0.95); }
+
+/* ---------------------------------------------------------------- 反馈 */
+.feedback { border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+.feedback.ok { background: var(--ok-bg); border: 1px solid #c8e6d3; }
+.feedback.err { background: var(--err-bg); border: 1px solid #f5c9c5; }
+.fb-title { font-weight: 700; margin-bottom: 6px; }
+.feedback.ok .fb-title { color: var(--ok); }
+.feedback.err .fb-title { color: var(--err); }
+.diff { font-family: var(--tibetan-font); font-size: 30px; font-weight: 600; word-break: break-all; }
+.diff .c-ok { color: var(--ok); }
+.diff .c-bad { color: var(--err); }
+.diff .c-miss { color: var(--err); opacity: .45; }
+.breakdown { font-size: 13px; color: var(--ink-soft); margin-top: 6px; }
+.breakdown b { font-family: var(--tibetan-font); font-size: 18px; color: var(--ink); }
+
+/* ---------------------------------------------------------------- 统计 */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 10px; }
+.stat { background: var(--accent-bg); border-radius: 9px; padding: 10px; text-align: center; }
+.stat b { display: block; font-size: 22px; color: var(--accent); }
+.stat span { font-size: 12px; color: var(--ink-soft); }
+
+.tag-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.tag-row:last-child { border-bottom: none; }
+.tag-row .name { flex: 1; }
+.tag-row .num { font-size: 13px; color: var(--ink-soft); white-space: nowrap; }
+.mini-bar { height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+.mini-bar > i { display: block; height: 100%; background: var(--ok); }
+
+.word-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.word-row:last-child { border-bottom: none; }
+.word-row .bo { font-family: var(--tibetan-font); font-size: 24px; font-weight: 600; }
+.word-row .zh { font-size: 13px; color: var(--ink-soft); }
+
+/* ---------------------------------------------------------------- 宽屏 */
+@media (min-width: 700px) {
+  body { font-size: 16px; }
+  .prompt .zh { font-size: 38px; }
+  .prompt .bo { font-size: 64px; }
+  .answer-box { font-size: 40px; }
+  .kb-keys { grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="head-inner wrap">
+    <div class="brand">藏语单词记忆 <span>བོད་ཡིག</span></div>
+    <div class="row">
+      <button class="btn btn-sm" id="nav-home">首页</button>
+      <button class="btn btn-sm" id="nav-stats">统计</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap" style="padding-top:12px; padding-bottom:40px;">
+
+<!-- ================================================================ 首页 -->
+<section id="screen-home">
+  <div class="card">
+    <h2>记忆模式</h2>
+    <div class="mode-pick">
+      <button class="mode-btn" data-mode="zh2bo">
+        汉译藏
+        <small>看中文，用软键盘拼出藏文</small>
+      </button>
+      <button class="mode-btn" data-mode="bo2zh">
+        藏译汉
+        <small>看藏文，想中文，再看答案</small>
+      </button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>练习范围</h2>
+    <div class="tag-list" id="tag-list"></div>
+    <label class="switch">
+      <input type="checkbox" id="opt-shuffle" checked>
+      打乱顺序
+    </label>
+    <label class="switch">
+      <input type="checkbox" id="opt-only-missed">
+      只练错词<span class="muted" id="missed-count"></span>
+    </label>
+    <div class="hint" id="range-summary"></div>
+  </div>
+
+  <button class="btn btn-primary" id="btn-start" style="width:100%; min-height:52px; font-size:16px;">
+    开始练习
+  </button>
+  <div class="hint" id="bank-info" style="text-align:center; margin-top:10px;"></div>
+</section>
+
+<!-- ================================================================ 答题 -->
+<section id="screen-quiz" class="hidden">
+  <div class="q-head">
+    <span id="quiz-progress"></span>
+    <span id="quiz-mode"></span>
+  </div>
+  <div class="bar"><i id="quiz-bar"></i></div>
+
+  <div class="card">
+    <div class="prompt" id="prompt"></div>
+    <div id="answer-area" class="hidden">
+      <div class="answer-box empty" id="answer-box">用下面的软键盘拼出藏文</div>
+      <div class="hidden" id="meaning-input-wrap">
+        <input type="text" id="meaning-input" class="meaning-input"
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+               placeholder="输入中文意思，写个大概就行">
+      </div>
+    </div>
+    <div id="feedback-area" class="hidden"></div>
+  </div>
+
+  <!-- 汉译藏：软键盘 -->
+  <div class="card hidden" id="keyboard-card">
+    <div class="kb-preview-row">
+      <div>
+        <div class="hint">正在拼这个音节</div>
+        <div class="kb-preview" id="kb-preview">—</div>
+      </div>
+      <button class="btn btn-sm" id="kb-reset-syl">清空本音节</button>
+    </div>
+    <div class="kb-tabs" id="kb-tabs"></div>
+    <div class="kb-keys" id="kb-keys"></div>
+    <div class="row" style="margin-top:10px;">
+      <button class="btn btn-primary" id="kb-append" style="flex:1;">加入这个音节</button>
+      <button class="btn" id="kb-back">退格</button>
+      <button class="btn" id="kb-clear">全部清空</button>
+    </div>
+  </div>
+
+  <div class="row" id="quiz-actions">
+    <button class="btn btn-primary" id="btn-submit" style="flex:1;">检查</button>
+    <button class="btn" id="btn-hint">提示</button>
+    <button class="btn" id="btn-giveup">不会，看答案</button>
+  </div>
+  <div class="row hidden" id="quiz-actions-2">
+    <button class="btn btn-primary" id="btn-next" style="flex:1;">下一个</button>
+    <button class="btn hidden" id="btn-success" style="flex:1;">其实我答对了</button>
+  </div>
+</section>
+
+<!-- ================================================================ 小结 -->
+<section id="screen-summary" class="hidden">
+  <div class="card">
+    <h2 id="summary-title">这一轮结束了</h2>
+    <div class="stat-grid" id="summary-stats"></div>
+    <div class="row" style="margin-top:16px;">
+      <button class="btn btn-primary" id="btn-again" style="flex:1;">再来一轮</button>
+      <button class="btn" id="btn-to-stats">看统计</button>
+    </div>
+  </div>
+  <div class="card" id="summary-missed-card">
+    <h2>这一轮答错的</h2>
+    <div id="summary-missed"></div>
+  </div>
+</section>
+
+<!-- ================================================================ 统计 -->
+<section id="screen-stats" class="hidden">
+  <div class="card">
+    <h2>总体进度</h2>
+    <div class="stat-grid" id="stats-overview"></div>
+  </div>
+  <div class="card">
+    <h2>按课统计</h2>
+    <div id="stats-by-tag"></div>
+  </div>
+  <div class="card">
+    <h2>错词本</h2>
+    <div id="stats-missed"></div>
+    <button class="btn" id="btn-clear-progress" style="margin-top:12px;">清空全部进度</button>
+  </div>
+</section>
+
+</main>
+
+<!-- 词库（由 update_wordbank.py 生成，不要手改） -->
+<script type="application/json" id="wordbank" data-bank-id="期中词汇库" data-generated-at="2026-10-06 22:31" data-count="196">
+[
+ {
+  "id": "5bf718ed62",
+  "tibetan": "ཁ།",
+  "meaning": "嘴，口",
+  "tags": [
+   "第一课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཁ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "736a9555e0",
+  "tibetan": "ང།",
+  "meaning": "我",
+  "tags": [
+   "第一课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ང",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "7ae4b7011a",
+  "tibetan": "ཆ།",
+  "meaning": "双，对",
+  "tags": [
+   "第一课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཆ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "40014c1ee2",
+  "tibetan": "ཇ།",
+  "meaning": "茶",
+  "tags": [
+   "第一课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཇ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "ea0ac8f655",
+  "tibetan": "ཉ།",
+  "meaning": "鱼",
+  "tags": [
+   "第一课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཉ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "5c4dbb41a5",
+  "tibetan": "ན།",
+  "meaning": "病、痛（动）",
+  "tags": [
+   "第一课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ན",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "df8bad2ddd",
+  "tibetan": "པ་ཕ།",
+  "meaning": "父亲",
+  "tags": [
+   "第一课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "པ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཕ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "d8c0f1d761",
+  "tibetan": "ཕ་མ།",
+  "meaning": "父母",
+  "tags": [
+   "第一课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཕ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "a1a237a759",
+  "tibetan": "ཐ་མ།",
+  "meaning": "最后",
+  "tags": [
+   "第一课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཐ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "eab26d3e22",
+  "tibetan": "ཐ་ན།",
+  "meaning": "甚至",
+  "tags": [
+   "第一课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཐ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ན",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "e4f25c0b1e",
+  "tibetan": "ཀ་བ།",
+  "meaning": "柱子",
+  "tags": [
+   "第一课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཀ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "0b34aeb41f",
+  "tibetan": "ཁ་བ།",
+  "meaning": "雪",
+  "tags": [
+   "第一课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཁ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "6c37b70789",
+  "tibetan": "ཐ་མ་ཁ།",
+  "meaning": "香烟",
+  "tags": [
+   "第一课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཐ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཁ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "05802b517a",
+  "tibetan": "ན་ཁ།",
+  "meaning": "草坪",
+  "tags": [
+   "第一课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ན",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཁ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "6f4a5532a4",
+  "tibetan": "ད་ཆ།",
+  "meaning": "最近",
+  "tags": [
+   "第一课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ད",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཆ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "c126dee4aa",
+  "tibetan": "ཉ་ག།",
+  "meaning": "藏两",
+  "tags": [
+   "第一课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཉ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "b8ceeab1ee",
+  "tibetan": "ཚ།",
+  "meaning": "热",
+  "tags": [
+   "第二课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཚ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "53892ed576",
+  "tibetan": "ཝ།",
+  "meaning": "狐狸",
+  "tags": [
+   "第二课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཝ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "a345e2dbae",
+  "tibetan": "ཟ།",
+  "meaning": "吃（现）",
+  "tags": [
+   "第二课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཟ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "b5a5b362ab",
+  "tibetan": "ཡ།",
+  "meaning": "单的",
+  "tags": [
+   "第二课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཡ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "e9b1e3afb5",
+  "tibetan": "ན་ཚ།",
+  "meaning": "病",
+  "tags": [
+   "第二课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ན",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཚ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "7b7b6b84a5",
+  "tibetan": "ཟ་མ།",
+  "meaning": "饭",
+  "tags": [
+   "第二课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཟ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "75620717b5",
+  "tibetan": "ཉ་པ།",
+  "meaning": "渔民",
+  "tags": [
+   "第二课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཉ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "པ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "6e69994cf2",
+  "tibetan": "ར།",
+  "meaning": "山羊",
+  "tags": [
+   "第二课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ར",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "cd894f3e87",
+  "tibetan": "ཤ།",
+  "meaning": "肉",
+  "tags": [
+   "第二课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཤ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "218827371b",
+  "tibetan": "ས།",
+  "meaning": "地、土",
+  "tags": [
+   "第二课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ས",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "bbecf31903",
+  "tibetan": "ཚྭ་ལ།",
+  "meaning": "硼砂",
+  "tags": [
+   "第二课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཚ",
+    "subjoined": [
+     "ཝ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ལ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "67555e54bb",
+  "tibetan": "ཞ་ར།",
+  "meaning": "盲人",
+  "tags": [
+   "第二课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཞ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ར",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "b0a5a09f9c",
+  "tibetan": "ཞ་ལ།",
+  "meaning": "泥墙灰",
+  "tags": [
+   "第二课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཞ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ལ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "b3fdc79328",
+  "tibetan": "ལ་ཁ།",
+  "meaning": "山顶、山口",
+  "tags": [
+   "第二课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ལ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཁ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "5e1379a322",
+  "tibetan": "ལ་ཆ།",
+  "meaning": "紫胶",
+  "tags": [
+   "第二课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ལ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཆ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "fefa96f4cb",
+  "tibetan": "ས་ཆ།",
+  "meaning": "地方",
+  "tags": [
+   "第二课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ས",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཆ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "882ba7ea81",
+  "tibetan": "ར་ཤ།",
+  "meaning": "山羊肉",
+  "tags": [
+   "第二课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ར",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཤ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "20b3db3d92",
+  "tibetan": "ཨ་ཕ།",
+  "meaning": "爸爸",
+  "tags": [
+   "第二课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཨ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཕ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "cbbbff6992",
+  "tibetan": "ཨ་མ།",
+  "meaning": "妈妈",
+  "tags": [
+   "第二课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཨ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "c3bf530fb1",
+  "tibetan": "ཉ་ཤ།",
+  "meaning": "鱼肉",
+  "tags": [
+   "第二课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཉ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཤ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "31bb412630",
+  "tibetan": "ཁོ།",
+  "meaning": "他",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཁ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "8dad0ce7de",
+  "tibetan": "གོ།",
+  "meaning": "听到",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "25205d1b84",
+  "tibetan": "ངུ།",
+  "meaning": "哭（现、未）",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ང",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "d09165c076",
+  "tibetan": "ཆུ།",
+  "meaning": "水、河",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཆ",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "de0280bd63",
+  "tibetan": "ངོ།",
+  "meaning": "脸",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ང",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "c709130786",
+  "tibetan": "ཉོ།",
+  "meaning": "买（现、未）",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཉ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "9a50c0537c",
+  "tibetan": "ཐོ།",
+  "meaning": "单子、记录",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཐ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "1d230832ad",
+  "tibetan": "དེ།",
+  "meaning": "那、那个",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ད",
+    "subjoined": [],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "956f565f63",
+  "tibetan": "ཕུ།",
+  "meaning": "气",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཕ",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "ccd7ada9d9",
+  "tibetan": "ཕོ།",
+  "meaning": "男、公",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཕ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "ebf43673bd",
+  "tibetan": "མོ།",
+  "meaning": "女、母",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "edc9a56f08",
+  "tibetan": "བུ།",
+  "meaning": "男孩",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "d63116fdf9",
+  "tibetan": "མི།",
+  "meaning": "人",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "2c21aa1e42",
+  "tibetan": "མེ།",
+  "meaning": "火",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "439dfece33",
+  "tibetan": "ཞོ།",
+  "meaning": "酸奶",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཞ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "8ec57a8a71",
+  "tibetan": "ཟོ།",
+  "meaning": "吃（命）",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཟ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "e694d9a0a6",
+  "tibetan": "རི།",
+  "meaning": "山",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ར",
+    "subjoined": [],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "5ec324f9d1",
+  "tibetan": "རོ།",
+  "meaning": "尸体",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ར",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "5ad349b018",
+  "tibetan": "ལོ།",
+  "meaning": "年、岁",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ལ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "fd28a5cb39",
+  "tibetan": "ཤི།",
+  "meaning": "死",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཤ",
+    "subjoined": [],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "0d830766fe",
+  "tibetan": "སུ།",
+  "meaning": "谁",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ས",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "e7f33f6836",
+  "tibetan": "སོ།",
+  "meaning": "牙齿",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ས",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "7d5f7fe45c",
+  "tibetan": "ཆེ།",
+  "meaning": "大",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཆ",
+    "subjoined": [],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "0ac7001aa9",
+  "tibetan": "ཀོ་བ།",
+  "meaning": "皮革",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཀ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "696f6cf0a9",
+  "tibetan": "ངུ་བ།",
+  "meaning": "哭",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ང",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "533f2d5e03",
+  "tibetan": "ཉི་མ།",
+  "meaning": "太阳、日",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཉ",
+    "subjoined": [],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "981ce21590",
+  "tibetan": "ཐོ་བ།",
+  "meaning": "锤",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཐ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "50af866ef6",
+  "tibetan": "དུ་བ།",
+  "meaning": "烟",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ད",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "f39b085022",
+  "tibetan": "ཕོ་བ།",
+  "meaning": "胃",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཕ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "b8434e3f71",
+  "tibetan": "ཨ་ཇོ།",
+  "meaning": "哥哥",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཨ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཇ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "0accae52bb",
+  "tibetan": "ཆུ་བོ།",
+  "meaning": "河",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཆ",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "93582ba896",
+  "tibetan": "ནེ་ཙོ།",
+  "meaning": "鹦鹉",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ན",
+    "subjoined": [],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཙ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "0e184450b7",
+  "tibetan": "ཞི་མི།",
+  "meaning": "猫",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཞ",
+    "subjoined": [],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "b534f50e23",
+  "tibetan": "འོ་མ།",
+  "meaning": "奶",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "འ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "6ec6af28b0",
+  "tibetan": "འོ་ཇ།",
+  "meaning": "奶茶",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "འ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཇ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "5bc3b7bd22",
+  "tibetan": "ཟོ་བ།",
+  "meaning": "木桶",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཟ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "7b9b2756c1",
+  "tibetan": "མུ་ཟི།",
+  "meaning": "火柴",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཟ",
+    "subjoined": [],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "1cb9f0f97c",
+  "tibetan": "རི་བོ།",
+  "meaning": "山",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ར",
+    "subjoined": [],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "2afcdebf98",
+  "tibetan": "རི་ཆུ།",
+  "meaning": "山水",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ར",
+    "subjoined": [],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཆ",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "70001975ab",
+  "tibetan": "ལུ་གུ།",
+  "meaning": "羊羔",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ལ",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "321a2bb53f",
+  "tibetan": "ཚ་རུ།",
+  "meaning": "羊羔皮",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཚ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ར",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "19de06dcfc",
+  "tibetan": "མ་ཧེ།",
+  "meaning": "水牛",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཧ",
+    "subjoined": [],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "71102c95aa",
+  "tibetan": "ཀུ་ཤུ།",
+  "meaning": "苹果",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཀ",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཤ",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "d1ca051cac",
+  "tibetan": "ཆུ་ཁ།",
+  "meaning": "水边、河边",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཆ",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཁ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "3ec05a3121",
+  "tibetan": "ད་ལོ།",
+  "meaning": "今年",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ད",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ལ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "b2b526dd81",
+  "tibetan": "པོ་ལོ།",
+  "meaning": "球",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "པ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ལ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "1f045856ce",
+  "tibetan": "ག་རེ།",
+  "meaning": "什么",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ར",
+    "subjoined": [],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "282221a2d8",
+  "tibetan": "རི་མོ།",
+  "meaning": "图案、画",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ར",
+    "subjoined": [],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "3fa2347d75",
+  "tibetan": "བུ་མོ།",
+  "meaning": "女孩儿",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "7813ac1ba7",
+  "tibetan": "ཡི་གེ།",
+  "meaning": "字、信",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཡ",
+    "subjoined": [],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "681d97e15e",
+  "tibetan": "མ་བུ།",
+  "meaning": "母子",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "9875648f2e",
+  "tibetan": "རེ་བ།",
+  "meaning": "希望（名）",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ར",
+    "subjoined": [],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "e8bcee7658",
+  "tibetan": "འོ་ན།",
+  "meaning": "那么",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "འ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ན",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "b30a399f4b",
+  "tibetan": "ཝ་མོ།",
+  "meaning": "狐狸",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཝ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "b89a4b0532",
+  "tibetan": "ལོ་མ།",
+  "meaning": "叶子",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ལ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "357febe2f1",
+  "tibetan": "ཙི་ཙི།",
+  "meaning": "老鼠",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཙ",
+    "subjoined": [],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཙ",
+    "subjoined": [],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "a045995466",
+  "tibetan": "ང་ཚོ།",
+  "meaning": "我们",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ང",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཚ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "c5466c29ff",
+  "tibetan": "ཁོ་ཚོ།",
+  "meaning": "他们",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཁ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཚ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "e6542ebd6e",
+  "tibetan": "ཉེ་པོ།",
+  "meaning": "近",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཉ",
+    "subjoined": [],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "པ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "615f89fc70",
+  "tibetan": "ཨ་ཁུ།",
+  "meaning": "叔叔",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཨ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཁ",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "7126f41b0e",
+  "tibetan": "དེ་ཚོ།",
+  "meaning": "那些",
+  "tags": [
+   "第三课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ད",
+    "subjoined": [],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཚ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "f9dc0428e7",
+  "tibetan": "རྔ།",
+  "meaning": "鼓",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ར",
+    "root": "ང",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "96deb82764",
+  "tibetan": "རྔ་མ།",
+  "meaning": "尾巴",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ར",
+    "root": "ང",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "a8d28cb3be",
+  "tibetan": "རྟ།",
+  "meaning": "马",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ར",
+    "root": "ཏ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "28059a4acb",
+  "tibetan": "རྣ།",
+  "meaning": "耳朵",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ར",
+    "root": "ན",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "57c377b467",
+  "tibetan": "རྨ།",
+  "meaning": "伤",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ར",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "53ed81c570",
+  "tibetan": "རྔོ་བ།",
+  "meaning": "炒",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ར",
+    "root": "ང",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "8f84547a61",
+  "tibetan": "རྣོ་བ།",
+  "meaning": "锋利",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ར",
+    "root": "ན",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "cca55fbdff",
+  "tibetan": "རྩེ།",
+  "meaning": "尖顶",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ར",
+    "root": "ཙ",
+    "subjoined": [],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "3e0d1e5864",
+  "tibetan": "རྡོ།",
+  "meaning": "石头",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ར",
+    "root": "ད",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "f47f21a8fd",
+  "tibetan": "རྐུ་བ།",
+  "meaning": "偷盗",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ར",
+    "root": "ཀ",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "74a033c2eb",
+  "tibetan": "རྫ་མ།",
+  "meaning": "瓦器、陶器",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ར",
+    "root": "ཛ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "0035f793f0",
+  "tibetan": "རྨོ་བོ།",
+  "meaning": "奶奶",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ར",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "44bac1eb03",
+  "tibetan": "རྐོ་མ།",
+  "meaning": "锄头",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ར",
+    "root": "ཀ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "c8b3d422d8",
+  "tibetan": "ལྔ།",
+  "meaning": "五",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ལ",
+    "root": "ང",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "118b960fe3",
+  "tibetan": "ལྷ།",
+  "meaning": "神",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ལ",
+    "root": "ཧ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "5ac7ad5cc0",
+  "tibetan": "ལྟ།",
+  "meaning": "看",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ལ",
+    "root": "ཏ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "8e1ba7a322",
+  "tibetan": "ལྕེ།",
+  "meaning": "舌头",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ལ",
+    "root": "ཅ",
+    "subjoined": [],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "5c251d4ccf",
+  "tibetan": "ལྦ་བ།",
+  "meaning": "瘿疣",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ལ",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "c450b80c5f",
+  "tibetan": "ལྷོ།",
+  "meaning": "南",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ལ",
+    "root": "ཧ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "f69087f63a",
+  "tibetan": "ལྷོ་ཁ།",
+  "meaning": "山南",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ལ",
+    "root": "ཧ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཁ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "e397aea149",
+  "tibetan": "ལྷ་ས།",
+  "meaning": "拉萨",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ལ",
+    "root": "ཧ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ས",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "60693d3a5c",
+  "tibetan": "ལྦུ་བ།",
+  "meaning": "水泡、泡沫",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ལ",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "5cc782f64b",
+  "tibetan": "ད་ལྟ།",
+  "meaning": "现在",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ད",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "ལ",
+    "root": "ཏ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "84c748ed31",
+  "tibetan": "ལྟོ་བ།",
+  "meaning": "腹、肚、腹部",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ལ",
+    "root": "ཏ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "af6fe1dfab",
+  "tibetan": "ལྕི་བ།",
+  "meaning": "牛粪",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ལ",
+    "root": "ཅ",
+    "subjoined": [],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "ec92598718",
+  "tibetan": "ལྕེ་རྩེ།",
+  "meaning": "舌尖",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ལ",
+    "root": "ཅ",
+    "subjoined": [],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "ར",
+    "root": "ཙ",
+    "subjoined": [],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "a13be8dc5d",
+  "tibetan": "ལྗི་བ།",
+  "meaning": "重",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ལ",
+    "root": "ཇ",
+    "subjoined": [],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "3c1461dca0",
+  "tibetan": "སྣ།",
+  "meaning": "鼻",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ས",
+    "root": "ན",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "6a6ee63168",
+  "tibetan": "སྐེ།",
+  "meaning": "脖子",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ས",
+    "root": "ཀ",
+    "subjoined": [],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "4ee2e87085",
+  "tibetan": "སྟ་རེ།",
+  "meaning": "斧",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ས",
+    "root": "ཏ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ར",
+    "subjoined": [],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "f8bbb7affc",
+  "tibetan": "སྨ་ར།",
+  "meaning": "胡须",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ས",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ར",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "a24c6bfd89",
+  "tibetan": "སྤུ།",
+  "meaning": "毛",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ས",
+    "root": "པ",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "4eb2b9a0c9",
+  "tibetan": "སྒོ།",
+  "meaning": "门",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ས",
+    "root": "ག",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "e63cb7949c",
+  "tibetan": "སྒོ་ང།",
+  "meaning": "蛋",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ས",
+    "root": "ག",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ང",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "8f0f53f7b0",
+  "tibetan": "སྤོ་བོ།",
+  "meaning": "爷爷",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ས",
+    "root": "པ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "36fdac6d1d",
+  "tibetan": "སྣ་ཐ།",
+  "meaning": "鼻烟",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ས",
+    "root": "ན",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཐ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "48a27efe0c",
+  "tibetan": "སྨེ་བ།",
+  "meaning": "痣",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ས",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "c0e46148f9",
+  "tibetan": "སྒོ་རྭ།",
+  "meaning": "院子",
+  "tags": [
+   "第四课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ས",
+    "root": "ག",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ར",
+    "subjoined": [
+     "ཝ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "4d28804e1c",
+  "tibetan": "ཁྱི།",
+  "meaning": "狗",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཁ",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "44de62bafa",
+  "tibetan": "ཁྱི་ར།",
+  "meaning": "打猎",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཁ",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ར",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "ff44f60209",
+  "tibetan": "ཤ་ཁྱི།",
+  "meaning": "猎犬",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཤ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཁ",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "b30af17d79",
+  "tibetan": "ཕྱར་བ།",
+  "meaning": "牛毛毯子",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཕ",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "",
+    "suffix": "ར",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "996a947d7e",
+  "tibetan": "ཕྱི་བ།",
+  "meaning": "擦（动）",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཕ",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "74a415275f",
+  "tibetan": "བྱེ་མ།",
+  "meaning": "沙子",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "907c6e7cee",
+  "tibetan": "བྱ་དེ།",
+  "meaning": "鸡",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ད",
+    "subjoined": [],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "fc48ca660c",
+  "tibetan": "བྱ་ཕོ།",
+  "meaning": "公鸡",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཕ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "7b372a7e21",
+  "tibetan": "བྱ་མོ།",
+  "meaning": "母鸡",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "decd4bd9f7",
+  "tibetan": "བྱི་བ།",
+  "meaning": "老鼠",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "a95a3e294e",
+  "tibetan": "བྱི་ལ།",
+  "meaning": "猫",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ལ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "ffcb194c44",
+  "tibetan": "རྒྱ་མ།",
+  "meaning": "称（名）",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ར",
+    "root": "ག",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "3b79a0262a",
+  "tibetan": "སྐྱ་ཀ།",
+  "meaning": "喜鹊",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ས",
+    "root": "ཀ",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཀ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "27cd28ddd9",
+  "tibetan": "རྨ་བྱ།",
+  "meaning": "孔雀",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ར",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "ead849624b",
+  "tibetan": "སྨྱོ་བ།",
+  "meaning": "疯",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ས",
+    "root": "མ",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "570a81b2dc",
+  "tibetan": "ཀྲི་ག།",
+  "meaning": "细颈凹纹",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཀ",
+    "subjoined": [
+     "ར"
+    ],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "9a4d7e1b4d",
+  "tibetan": "ཁྲ་བོ།",
+  "meaning": "花色",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཁ",
+    "subjoined": [
+     "ར"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "14d7749819",
+  "tibetan": "ཁྲི།",
+  "meaning": "万",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཁ",
+    "subjoined": [
+     "ར"
+    ],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "6a2221d15f",
+  "tibetan": "གྲོ།",
+  "meaning": "麦",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [
+     "ར"
+    ],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "05f4aef48d",
+  "tibetan": "གྲོ་མ།",
+  "meaning": "人参果",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [
+     "ར"
+    ],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "5a930a7309",
+  "tibetan": "གྲོ་ཕྱེ།",
+  "meaning": "面粉",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [
+     "ར"
+    ],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཕ",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "1fc82e718a",
+  "tibetan": "གྲོ་ཞིབ།",
+  "meaning": "面粉",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [
+     "ར"
+    ],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཞ",
+    "subjoined": [],
+    "vowel": "ི",
+    "suffix": "བ",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "966569128e",
+  "tibetan": "པ་ཏྲ།",
+  "meaning": "菱形孔格花纹",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "པ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཏ",
+    "subjoined": [
+     "ར"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "af8da65de6",
+  "tibetan": "དྲི་མ།",
+  "meaning": "气味",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ད",
+    "subjoined": [
+     "ར"
+    ],
+    "vowel": "ི",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "74e3454f88",
+  "tibetan": "དྲོ་པོ།",
+  "meaning": "暖和",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ད",
+    "subjoined": [
+     "ར"
+    ],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "པ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "358d3143db",
+  "tibetan": "བྲོ་བ།",
+  "meaning": "味道",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [
+     "ར"
+    ],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "d910c30b6b",
+  "tibetan": "ཀླ་ཀློ།",
+  "meaning": "野蛮",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཀ",
+    "subjoined": [
+     "ལ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཀ",
+    "subjoined": [
+     "ལ"
+    ],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "fd761f309f",
+  "tibetan": "གླ་བ།",
+  "meaning": "麝香鹿",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [
+     "ལ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "1bd25c602c",
+  "tibetan": "གློ་བ།",
+  "meaning": "肺",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [
+     "ལ"
+    ],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "7874e25800",
+  "tibetan": "གླ་ཆ།",
+  "meaning": "工资、薪金",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [
+     "ལ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཆ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "1b26be00ec",
+  "tibetan": "བླ་མ།",
+  "meaning": "上师（名）",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [
+     "ལ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "10dd7e02ff",
+  "tibetan": "ཟླ་བ།",
+  "meaning": "月亮",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཟ",
+    "subjoined": [
+     "ལ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "2ba6b413cf",
+  "tibetan": "སླེ་པོ།",
+  "meaning": "竹筐",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ས",
+    "subjoined": [
+     "ལ"
+    ],
+    "vowel": "ེ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "པ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "19ac249cda",
+  "tibetan": "སློ་མ།",
+  "meaning": "篾盒",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ས",
+    "subjoined": [
+     "ལ"
+    ],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "40eb06cb4a",
+  "tibetan": "ཚྭ།",
+  "meaning": "盐",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཚ",
+    "subjoined": [
+     "ཝ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "77579654b8",
+  "tibetan": "ཚྭ་ཁུ།",
+  "meaning": "咸",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཚ",
+    "subjoined": [
+     "ཝ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཁ",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "3854309e7c",
+  "tibetan": "རྩྭ།",
+  "meaning": "草",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ར",
+    "root": "ཙ",
+    "subjoined": [
+     "ཝ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "0bf3e50431",
+  "tibetan": "རྩྭ་རྭ།",
+  "meaning": "草场",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ར",
+    "root": "ཙ",
+    "subjoined": [
+     "ཝ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ར",
+    "subjoined": [
+     "ཝ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "d3e8a02f90",
+  "tibetan": "རྩྭ་ཞྭ།",
+  "meaning": "草帽",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ར",
+    "root": "ཙ",
+    "subjoined": [
+     "ཝ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཞ",
+    "subjoined": [
+     "ཝ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "d6bea74039",
+  "tibetan": "རྭ་ཅོ།",
+  "meaning": "角、兽角",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ར",
+    "subjoined": [
+     "ཝ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཅ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "1564e7eb9a",
+  "tibetan": "རྩྭ་ལྷམ།",
+  "meaning": "草鞋",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ར",
+    "root": "ཙ",
+    "subjoined": [
+     "ཝ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "ལ",
+    "root": "ཧ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "མ",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "196bdc9933",
+  "tibetan": "ལྭ་བ།",
+  "meaning": "长袍",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ལ",
+    "subjoined": [
+     "ཝ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "3b8372dea1",
+  "tibetan": "ཤྭ་བ།",
+  "meaning": "鹿",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཤ",
+    "subjoined": [
+     "ཝ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "7300118538",
+  "tibetan": "དྲྭ་བ།",
+  "meaning": "网子",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ད",
+    "subjoined": [
+     "ར",
+     "ཝ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "cb3dc90810",
+  "tibetan": "གྲྭ་པ།",
+  "meaning": "僧人",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [
+     "ར",
+     "ཝ"
+    ],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "པ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "459c5268c6",
+  "tibetan": "ཕྱུ་པ།",
+  "meaning": "长袍",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཕ",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "པ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "0e3b6a4049",
+  "tibetan": "བྱུ་རུ།",
+  "meaning": "珊瑚",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "བ",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ར",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "8d9caa9f73",
+  "tibetan": "སྨྱུ་གུ།",
+  "meaning": "笔",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "ས",
+    "root": "མ",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "8b60bd63f2",
+  "tibetan": "མྱུ་གུ།",
+  "meaning": "芽、幼苗",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "8e380c0800",
+  "tibetan": "ཕྱུ་ར།",
+  "meaning": "干酪",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཕ",
+    "subjoined": [
+     "ཡ"
+    ],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ར",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "5483e317aa",
+  "tibetan": "ཀྲུང་གོ།",
+  "meaning": "中国",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཀ",
+    "subjoined": [
+     "ར"
+    ],
+    "vowel": "ུ",
+    "suffix": "ང",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "27a761d76a",
+  "tibetan": "ཀྲོ་མ་ཀྲུ།",
+  "meaning": "西红柿",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཀ",
+    "subjoined": [
+     "ར"
+    ],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཀ",
+    "subjoined": [
+     "ར"
+    ],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "8e707167a2",
+  "tibetan": "གྲུ།",
+  "meaning": "船",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [
+     "ར"
+    ],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "f1718cda79",
+  "tibetan": "གྲུ་ཁ།",
+  "meaning": "码头",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [
+     "ར"
+    ],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཁ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "02558146f4",
+  "tibetan": "གྲུ་པ།",
+  "meaning": "船夫",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [
+     "ར"
+    ],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "པ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "ccc2fee6cf",
+  "tibetan": "ཕྲུ་གུ།",
+  "meaning": "孩子",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཕ",
+    "subjoined": [
+     "ར"
+    ],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "259aadb31d",
+  "tibetan": "སྲུ་མོ།",
+  "meaning": "姨妈",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ས",
+    "subjoined": [
+     "ར"
+    ],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "3bf429843c",
+  "tibetan": "ཀླུ་མོ།",
+  "meaning": "龙女",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཀ",
+    "subjoined": [
+     "ལ"
+    ],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "ོ",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "98899a29ef",
+  "tibetan": "གླུ་མ།",
+  "meaning": "歌女",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [
+     "ལ"
+    ],
+    "vowel": "ུ",
+    "suffix": "",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "མ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "3dbe95cbe8",
+  "tibetan": "གླིང་ཁ།",
+  "meaning": "林卡",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ག",
+    "subjoined": [
+     "ལ"
+    ],
+    "vowel": "ི",
+    "suffix": "ང",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཁ",
+    "subjoined": [],
+    "vowel": "",
+    "suffix": "",
+    "suffix2": ""
+   }
+  ]
+ },
+ {
+  "id": "103d655201",
+  "tibetan": "སྲོག་ཤིང།",
+  "meaning": "核心",
+  "tags": [
+   "第五课"
+  ],
+  "autoJoin": true,
+  "trailingShad": true,
+  "components": [
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ས",
+    "subjoined": [
+     "ར"
+    ],
+    "vowel": "ོ",
+    "suffix": "ག",
+    "suffix2": ""
+   },
+   {
+    "prefix": "",
+    "superscript": "",
+    "root": "ཤ",
+    "subjoined": [],
+    "vowel": "ི",
+    "suffix": "ང",
+    "suffix2": ""
+   }
+  ]
+ }
+]
+</script>
+
+<script>
+/* ==========================================================================
+   藏语单词记忆 —— 全部逻辑
+   纯离线单文件：不 fetch、不用 ES module（file:// 下会被 CORS 拦掉）
+   ========================================================================== */
+(function () {
+'use strict';
+
+/* --------------------------------------------------------------------------
+   一、藏文合成器（与工程里 tibetan.py 的规则逐字对应）
+
+   tibetan.py 是权威实现，这里是一份镜像。tests/test_memorize.py 会用 dukpy
+   把这段代码跑起来，对全部词条逐一比对两边的输出，确保不会走偏。
+   -------------------------------------------------------------------------- */
+
+// 基字（30 个常用辅音）
+var ROOTS = ('ཀཁགངཅཆཇཉཏཐདནཔཕབམཙཚཛཝཞཟའཡརལཤསཧཨ').split('');
+var SUPERSCRIPTS = 'རལས'.split('');
+var SUBJOINED = 'ཡརལཝཧ'.split('');
+var VOWELS = 'ིེོུ'.split('');
+var PREFIXES = 'གདབམའ'.split('');
+var SUFFIXES = ('གངདནབམའརལས').split('');
+var SUFFIX2S = 'སད'.split('');
+
+var TSHEG = '་';          // U+0F0B
+var TSHEG_BSTAR = '༌';    // U+0F0C，看着一样但码点不同
+var SHAD = '།';           // U+0F0D
+
+// 正常辅音 -> 下加形式。二者在 Unicode 里固定相差 0x50，
+// 所以这里按偏移量算，不手抄 30 组映射（和 tibetan.py 一样）
+function toSubjoined(c) {
+  return String.fromCharCode(c.charCodeAt(0) + 0x50);
+}
+var SUBJOINED_MAP = {};   // 基字 -> 下加形式（有上加字时用）
+ROOTS.forEach(function (c) { SUBJOINED_MAP[c] = toSubjoined(c); });
+var SUBJOINED_TAIL = {};  // 下加字下拉框的 5 个选项 -> 下加形式
+SUBJOINED.forEach(function (c) { SUBJOINED_TAIL[c] = toSubjoined(c); });
+
+/** 把用户粘贴的藏文归一：tsheg bstar 换成标准 tsheg，并去掉首尾空白 */
+function normalizeText(s) {
+  return String(s == null ? '' : s).replace(new RegExp(TSHEG_BSTAR, 'g'), TSHEG).trim();
+}
+
+/** 判定用的归一：再额外去掉词尾的 །（它是标点，不算拼写） */
+function normalizeForCompare(s) {
+  return normalizeText(s).replace(new RegExp(SHAD + '+$'), '');
+}
+
+function blankSyllable() {
+  return { prefix: '', superscript: '', root: '', subjoined: [],
+           vowel: '', suffix: '', suffix2: '' };
+}
+
+/** 合成一个音节。没有基字就返回空串（合成不出来，不硬拼） */
+function composeSyllable(syl) {
+  if (!syl || !syl.root) return '';
+  var out = '';
+  if (syl.prefix) out += syl.prefix;
+  if (syl.superscript) {
+    // 有上加字：上加字正常形式 + 基字的下加形式
+    out += syl.superscript + (SUBJOINED_MAP[syl.root] || syl.root);
+  } else {
+    out += syl.root;
+  }
+  (syl.subjoined || []).forEach(function (x) {
+    out += SUBJOINED_TAIL[x] || x;
+  });
+  if (syl.vowel) out += syl.vowel;
+  if (syl.suffix) out += syl.suffix;
+  if (syl.suffix2) out += syl.suffix2;
+  return out;
+}
+
+/** 合成一个词。autoJoin 用 ་ 连接音节，trailingShad 在词尾补 ། */
+function composeWord(syllables, autoJoin, trailingShad) {
+  var parts = [];
+  (syllables || []).forEach(function (s) {
+    var one = composeSyllable(s);
+    if (one) parts.push(one);
+  });
+  var word = parts.join(autoJoin === false ? '' : TSHEG);
+  if (word && trailingShad) word += SHAD;
+  return word;
+}
+
+/** 把音节拆成「基字 ག + 元音 ོ + 后加字 ད」这样的人话，答错时给提示用 */
+function describeSyllable(syl) {
+  var names = [['prefix', '前加字'], ['superscript', '上加字'], ['root', '基字'],
+               ['vowel', '元音'], ['suffix', '后加字'], ['suffix2', '再后加字']];
+  var bits = [];
+  names.forEach(function (pair) {
+    if (syl[pair[0]]) bits.push(pair[1] + ' ' + syl[pair[0]]);
+  });
+  (syl.subjoined || []).forEach(function (x) { bits.push('下加字 ' + x); });
+  return bits.join(' + ');
+}
+
+/* --------------------------------------------------------------------------
+   二、词库
+   -------------------------------------------------------------------------- */
+var bankEl = document.getElementById('wordbank');
+var BANK = [];
+var BANK_INFO = { generatedAt: '', count: 0, id: '' };
+try {
+  var parsed = JSON.parse(bankEl.textContent);
+  // 兼容两种内嵌形状：数组，或 {words: [...]}
+  BANK = Array.isArray(parsed) ? parsed : (parsed.words || []);
+  BANK_INFO.generatedAt = bankEl.dataset.generatedAt || '';
+  BANK_INFO.id = bankEl.dataset.bankId || '';
+  BANK_INFO.count = BANK.length;
+} catch (e) {
+  BANK = [];
+}
+
+/* --------------------------------------------------------------------------
+   三、本地进度（localStorage）
+   -------------------------------------------------------------------------- */
+// 存储键要带上词库名。
+//
+// localStorage 是按**源**（协议+域名+端口）隔离的，**不区分路径**。
+// 托管到 GitHub Pages 之后，同一账号下的
+//   https://用户名.github.io/期中词汇/
+//   https://用户名.github.io/期末词汇/
+// 属于同一个源，键名写死就会互相覆盖——两套词库的进度串在一起。
+// 所以更新工具会把词库名写进 data-bank-id，这里拼进键名里。
+var STORE_KEY = 'zwjy-memory:v1:' + (BANK_INFO.id || 'default');
+// file:// 下个别浏览器不给 localStorage，退化成内存存储，功能照常、只是关掉就丢
+var storageOK = true;
+var memoryStore = {};
+try {
+  window.localStorage.setItem('zwjy-memory:probe', '1');
+  window.localStorage.removeItem('zwjy-memory:probe');
+} catch (e) {
+  storageOK = false;
+}
+
+function loadStore() {
+  if (!storageOK) return memoryStore;
+  try {
+    var raw = window.localStorage.getItem(STORE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+function saveStore(data) {
+  if (!storageOK) { memoryStore = data; return; }
+  try {
+    window.localStorage.setItem(STORE_KEY, JSON.stringify(data));
+  } catch (e) {
+    storageOK = false;
+    memoryStore = data;
+  }
+}
+
+var store = loadStore();
+if (!store.words) store.words = {};
+if (!store.settings) store.settings = {};
+
+/** 每个词的记录：答对/答错次数、连对次数、上次作答时间 */
+function recordOf(id) {
+  return store.words[id] || null;
+}
+function markAnswer(id, correct) {
+  var rec = store.words[id] || { right: 0, wrong: 0, streak: 0, last: 0 };
+  if (correct) {
+    rec.right += 1;
+    rec.streak += 1;
+  } else {
+    rec.wrong += 1;
+    rec.streak = 0;
+  }
+  rec.last = Date.now();
+  store.words[id] = rec;
+  saveStore(store);
+}
+
+//: 连对 2 次算「已掌握」
+var MASTER_STREAK = 2;
+function isMastered(id) {
+  var rec = recordOf(id);
+  return !!rec && rec.streak >= MASTER_STREAK;
+}
+function isMissed(id) {
+  var rec = recordOf(id);
+  return !!rec && rec.wrong > 0 && rec.streak === 0;
+}
+
+/* --------------------------------------------------------------------------
+   四、界面切换
+   -------------------------------------------------------------------------- */
+var SCREENS = ['screen-home', 'screen-quiz', 'screen-summary', 'screen-stats'];
+function show(name) {
+  SCREENS.forEach(function (id) {
+    document.getElementById(id).classList.toggle('hidden', id !== name);
+  });
+  window.scrollTo(0, 0);
+}
+
+var settings = {
+  mode: 'zh2bo',
+  tags: [],
+  shuffle: true,
+  onlyMissed: false
+};
+
+/* --------------------------------------------------------------------------
+   五、首页
+   -------------------------------------------------------------------------- */
+function allTags() {
+  var seen = [];
+  BANK.forEach(function (w) {
+    (w.tags || []).forEach(function (t) {
+      if (seen.indexOf(t) < 0) seen.push(t);
+    });
+  });
+  return seen;
+}
+
+function tagCounts() {
+  var counts = {};
+  BANK.forEach(function (w) {
+    (w.tags || []).forEach(function (t) { counts[t] = (counts[t] || 0) + 1; });
+  });
+  return counts;
+}
+
+function activeTags() {
+  return settings.tags.length ? settings.tags : allTags();
+}
+
+function wordsInRange() {
+  var tags = activeTags();
+  return BANK.filter(function (w) {
+    if (!(w.tags || []).some(function (t) { return tags.indexOf(t) >= 0; })) return false;
+    if (settings.onlyMissed && !isMissed(w.id)) return false;
+    return true;
+  });
+}
+
+function renderHome() {
+  // 模式
+  Array.prototype.forEach.call(document.querySelectorAll('.mode-btn'), function (b) {
+    b.classList.toggle('on', b.dataset.mode === settings.mode);
+  });
+
+  // 标签
+  var counts = tagCounts();
+  var box = document.getElementById('tag-list');
+  box.innerHTML = '';
+  var all = document.createElement('button');
+  all.className = 'tag-btn' + (settings.tags.length ? '' : ' on');
+  all.textContent = '全部';
+  all.addEventListener('click', function () { settings.tags = []; renderHome(); });
+  box.appendChild(all);
+
+  allTags().forEach(function (t) {
+    var b = document.createElement('button');
+    b.className = 'tag-btn' + (settings.tags.indexOf(t) >= 0 ? ' on' : '');
+    b.innerHTML = '';
+    b.appendChild(document.createTextNode(t));
+    var small = document.createElement('small');
+    small.textContent = counts[t] || 0;
+    b.appendChild(small);
+    b.addEventListener('click', function () {
+      var i = settings.tags.indexOf(t);
+      if (i >= 0) settings.tags.splice(i, 1); else settings.tags.push(t);
+      renderHome();
+    });
+    box.appendChild(b);
+  });
+
+  document.getElementById('opt-shuffle').checked = settings.shuffle;
+  document.getElementById('opt-only-missed').checked = settings.onlyMissed;
+
+  var missedTotal = BANK.filter(function (w) { return isMissed(w.id); }).length;
+  document.getElementById('missed-count').textContent = '（' + missedTotal + '）';
+
+  var range = wordsInRange();
+  var mastered = range.filter(function (w) { return isMastered(w.id); }).length;
+  document.getElementById('range-summary').textContent =
+    '当前范围：' + range.length + ' 个词，其中已掌握 ' + mastered + ' 个。';
+  document.getElementById('btn-start').disabled = range.length === 0;
+
+  var info = '词库共 ' + BANK.length + ' 个词';
+  if (BANK_INFO.generatedAt) info += '（更新于 ' + BANK_INFO.generatedAt + '）';
+  if (!storageOK) info += ' · 注意：本浏览器不允许本地存储，进度关掉页面就没了';
+  document.getElementById('bank-info').textContent = info;
+}
+
+/* --------------------------------------------------------------------------
+   六、练习会话
+   -------------------------------------------------------------------------- */
+var session = null;
+
+function startSession() {
+  var words = wordsInRange();
+  if (!words.length) return;
+  if (settings.shuffle) {
+    words = words.slice();
+    for (var i = words.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = words[i]; words[i] = words[j]; words[j] = tmp;
+    }
+  }
+  session = {
+    queue: words.slice(),
+    roundWords: words.length,   // 本轮一共涉及多少个词（不去重）
+    answered: 0,
+    right: 0,
+    wrong: 0,
+    missedIds: {},              // 本轮答错过的词
+    attempted: {},              // 已经答过一次的词（正确率只算第一次）
+    current: null,
+    lastUserRaw: '',            // 上一次作答的内容，用于反馈区显示 / 改判
+    hinted: false
+  };
+  show('screen-quiz');
+  nextQuestion();
+}
+
+function nextQuestion() {
+  if (!session || session.queue.length === 0) { endSession(); return; }
+  session.current = session.queue[0];
+  session.hinted = false;
+  session.lastUserRaw = '';
+  resetKeyboardAnswer();
+  renderQuiz();
+}
+
+function renderQuiz() {
+  var w = session.current;
+  var done = session.roundWords - session.queue.length;
+  document.getElementById('quiz-progress').textContent =
+    '还剩 ' + session.queue.length + ' 个（已完成 ' + done + '）';
+  document.getElementById('quiz-mode').textContent =
+    settings.mode === 'zh2bo' ? '汉译藏' : '藏译汉';
+  document.getElementById('quiz-bar').style.width =
+    (session.roundWords ? (done / session.roundWords * 100) : 0) + '%';
+
+  var prompt = document.getElementById('prompt');
+  if (settings.mode === 'zh2bo') {
+    prompt.innerHTML = '';
+    var zh = document.createElement('div');
+    zh.className = 'zh';
+    zh.textContent = w.meaning;
+    prompt.appendChild(zh);
+  } else {
+    prompt.innerHTML = '';
+    var bo = document.createElement('div');
+    bo.className = 'bo tib';
+    bo.textContent = w.tibetan;
+    prompt.appendChild(bo);
+  }
+
+  var answerArea = document.getElementById('answer-area');
+  var kb = document.getElementById('keyboard-card');
+  var act1 = document.getElementById('quiz-actions');
+  var act2 = document.getElementById('quiz-actions-2');
+  var fb = document.getElementById('feedback-area');
+  var meaningWrap = document.getElementById('meaning-input-wrap');
+  var meaningInput = document.getElementById('meaning-input');
+
+  fb.classList.add('hidden');
+  fb.className = 'hidden';
+  fb.innerHTML = '';
+  act2.classList.add('hidden');
+  act1.classList.remove('hidden');
+  answerArea.classList.remove('hidden');
+
+  if (settings.mode === 'zh2bo') {
+    // 汉译藏：用软键盘拼
+    kb.classList.remove('hidden');
+    meaningWrap.classList.add('hidden');
+    document.getElementById('answer-box').classList.remove('hidden');
+    document.getElementById('btn-submit').disabled = !answers.length;
+    document.getElementById('btn-hint').classList.remove('hidden');
+    document.getElementById('btn-giveup').textContent = '不会，看答案';
+    document.getElementById('btn-success').classList.add('hidden');
+    renderKeyboard();
+  } else {
+    // 藏译汉：输入中文释义
+    kb.classList.add('hidden');
+    meaningWrap.classList.remove('hidden');
+    document.getElementById('answer-box').classList.add('hidden');
+    meaningInput.value = '';
+    meaningInput.disabled = false;
+    document.getElementById('btn-submit').disabled = true;
+    document.getElementById('btn-hint').classList.add('hidden');
+    document.getElementById('btn-giveup').textContent = '不会，看答案';
+    document.getElementById('btn-success').classList.add('hidden');
+    // 手机上自动弹键盘会挡住题目，所以只在宽屏自动聚焦
+    if (window.innerWidth >= 700) meaningInput.focus();
+  }
+}
+
+/* --------------------------------------------------------------------------
+   七、软键盘
+   -------------------------------------------------------------------------- */
+// 按「这条词库里组件出现的频率」排序，把最常用的放前面
+var GROUPS = [
+  { key: 'root', label: '基字', options: ROOTS, required: true },
+  { key: 'vowel', label: '元音', options: VOWELS },
+  { key: 'subjoined', label: '下加字', options: SUBJOINED, multi: true },
+  { key: 'superscript', label: '上加字', options: SUPERSCRIPTS },
+  { key: 'suffix', label: '后加字', options: SUFFIXES },
+  { key: 'prefix', label: '前加字', options: PREFIXES },
+  { key: 'suffix2', label: '再后加字', options: SUFFIX2S }
+];
+
+var currentSyl = blankSyllable();
+var answers = [];              // 已经加进去的音节数组
+var activeGroup = 'root';
+
+function resetKeyboardAnswer() {
+  currentSyl = blankSyllable();
+  answers = [];
+}
+
+function renderKeyboard() {
+  // 当前音节预览
+  var one = composeSyllable(currentSyl);
+  document.getElementById('kb-preview').textContent = one || '—';
+
+  // 分类标签（顺带显示这个组件选了什么）
+  var tabs = document.getElementById('kb-tabs');
+  tabs.innerHTML = '';
+  GROUPS.forEach(function (g) {
+    var b = document.createElement('button');
+    b.className = 'kb-tab' + (g.key === activeGroup ? ' on' : '');
+    b.appendChild(document.createTextNode(g.label));
+    var set = document.createElement('span');
+    var v = currentSyl[g.key];
+    var has = Array.isArray(v) ? v.length : !!v;
+    set.className = 'set' + (has ? '' : ' none');
+    set.textContent = has ? (Array.isArray(v) ? v.join(' ') : v) : '·';
+    b.appendChild(set);
+    b.addEventListener('click', function () { activeGroup = g.key; renderKeyboard(); });
+    tabs.appendChild(b);
+  });
+
+  // 当前分类的按键
+  var keys = document.getElementById('kb-keys');
+  keys.innerHTML = '';
+  var group = GROUPS.filter(function (g) { return g.key === activeGroup; })[0];
+
+  if (!group.required) {
+    keys.appendChild(makeKey('无', false, function () {
+      currentSyl[group.key] = group.multi ? [] : '';
+      renderKeyboard();
+    }));
+  }
+  group.options.forEach(function (opt) {
+    var selected;
+    if (group.multi) selected = (currentSyl[group.key] || []).indexOf(opt) >= 0;
+    else selected = currentSyl[group.key] === opt;
+    keys.appendChild(makeKey(opt, true, function () {
+      if (group.multi) {
+        var list = currentSyl[group.key] || [];
+        var i = list.indexOf(opt);
+        if (i >= 0) list.splice(i, 1); else list.push(opt);
+        currentSyl[group.key] = list;
+      } else {
+        // 再点一次取消，省得为了改一个组件还得先点「无」
+        currentSyl[group.key] = selected ? '' : opt;
+      }
+      renderKeyboard();
+    }, selected));
+  });
+
+  document.getElementById('kb-append').disabled = !currentSyl.root;
+  renderAnswerBox();
+}
+
+function makeKey(text, tibetan, onClick, selected) {
+  var b = document.createElement('button');
+  b.className = 'key' + (tibetan ? ' bo' : '') + (selected ? ' on' : '');
+  b.textContent = text;
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+// 答案框里显示的就是「按目标词条自己的连接/词尾设置」渲染出来的样子
+function renderAnswerBox() {
+  var box = document.getElementById('answer-box');
+  if (!answers.length) {
+    box.className = 'answer-box empty';
+    box.textContent = '用下面的软键盘拼出藏文';
+    return;
+  }
+  var target = session ? session.current : null;
+  box.className = 'answer-box';
+  box.textContent = composeWord(answers,
+    target ? target.autoJoin !== false : true,
+    target ? target.trailingShad !== false : true);
+}
+
+function appendSyllable() {
+  if (!currentSyl.root) return;
+  answers.push(JSON.parse(JSON.stringify(currentSyl)));
+  currentSyl = blankSyllable();
+  renderQuiz();
+}
+
+/* --------------------------------------------------------------------------
+   八、判分
+   -------------------------------------------------------------------------- */
+function charDiff(userText, targetText) {
+  /* 逐字对比：返回两行 HTML —— 用户写的、和正确答案的。
+     长度不一致时以长的那边为准，缺少的位置标成「缺失」。 */
+  var u = userText, t = targetText;
+  var n = Math.max(u.length, t.length);
+  var uHtml = '', tHtml = '';
+  for (var i = 0; i < n; i++) {
+    var uc = u[i], tc = t[i];
+    if (uc === tc) {
+      uHtml += '<span class="c-ok">' + esc(uc) + '</span>';
+      tHtml += '<span class="c-ok">' + esc(tc) + '</span>';
+    } else {
+      if (uc) uHtml += '<span class="c-bad">' + esc(uc) + '</span>';
+      if (tc) tHtml += '<span class="c-miss">' + esc(tc) + '</span>';
+    }
+  }
+  return { user: uHtml, target: tHtml };
+}
+
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/* --------------------------------------------------------------------------
+   八之二、中文释义的判分
+
+   中文没法要求逐字一致——「腹、肚、腹部」你写「肚子」当然算对。所以规则放宽：
+   去掉词性标注、按分隔符拆成若干「可接受答案」，然后
+
+   * 完全一样            -> 对
+   * 你写的包含某个答案  -> 对（你多写了几个字）
+   * 某个答案包含你写的  -> 对，但你写的至少要有 2 个字（写「花」不算答出「菱形孔格花纹」）
+
+   放宽是有意的：近义词没法穷举，判严了只会让人烦躁。
+   真判错了，反馈里还有一个「其实我答对了」可以改。
+   -------------------------------------------------------------------------- */
+
+/** 把释义拆成若干可接受的答案。「病、痛（动）」-> ["病", "痛"] */
+function meaningAlternatives(meaning) {
+  var text = String(meaning == null ? '' : meaning)
+    .replace(/[（(][^）)]*[）)]/g, ' ')   // 括号里多是词性标注（动）（现、未），不是释义
+    .replace(/[「」『』]/g, ' ');
+  return text.split(/[，,、;；\/|]+/)
+    .map(function (s) { return s.trim(); })
+    .filter(function (s) { return s.length > 0; });
+}
+
+/** 中文归一：去掉空白、全角转半角、统一标点 */
+function normalizeChinese(text) {
+  return String(text == null ? '' : text)
+    .replace(/\s+/g, '')
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, function (c) {
+      return String.fromCharCode(c.charCodeAt(0) - 0xFEE0);
+    });
+}
+
+var MIN_PARTIAL_CHARS = 2;   // 部分匹配至少要写这么多字
+
+function meaningMatches(userText, meaning) {
+  var typed = normalizeChinese(userText);
+  if (!typed) return false;
+  var alternatives = meaningAlternatives(meaning)
+    .map(normalizeChinese)
+    .filter(function (s) { return s.length > 0; });
+  if (!alternatives.length) return false;
+
+  for (var i = 0; i < alternatives.length; i++) {
+    var answer = alternatives[i];
+    if (typed === answer) return true;
+    if (typed.indexOf(answer) >= 0) return true;                    // 多写了几个字
+    if (typed.length >= MIN_PARTIAL_CHARS
+        && answer.indexOf(typed) >= 0) return true;                 // 写了个大概
+  }
+  return false;
+}
+
+function breakdownHtml(word) {
+  var parts = (word.components || []).map(function (s) {
+    return '<b>' + esc(composeSyllable(s)) + '</b> = ' + esc(describeSyllable(s));
+  });
+  return '<div class="breakdown">' + parts.join('<br>') + '</div>';
+}
+
+function gradeZh2Bo() {
+  var w = session.current;
+  var userRaw = composeWord(answers, w.autoJoin !== false, w.trailingShad !== false);
+  var correct = normalizeForCompare(userRaw) === normalizeForCompare(w.tibetan);
+  finishAnswer(correct, userRaw, w);
+}
+
+function gradeBo2Zh() {
+  var w = session.current;
+  var typed = document.getElementById('meaning-input').value;
+  finishAnswer(meaningMatches(typed, w.meaning), typed, w);
+}
+
+function finishAnswer(correct, userRaw, w) {
+  // 正确率只算每个词的**第一次**作答：同一个词后面重来几次都不再计分，
+  // 否则一个难词会把自己的正确率压低好几倍。
+  var counted = !session.attempted[w.id];
+  if (counted) {
+    session.attempted[w.id] = true;
+    if (correct) session.right += 1; else session.wrong += 1;
+  }
+  session.answered += 1;
+  session.lastUserRaw = userRaw || '';
+  session.lastCounted = counted;   // 改判时要靠它决定动不动统计
+  markAnswer(w.id, correct);
+
+  if (correct) {
+    session.queue.shift();                        // 答对：出队
+  } else {
+    session.queue.push(session.queue.shift());    // 答错：排到队尾，稍后再来
+    session.missedIds[w.id] = true;
+  }
+
+  renderFeedback(correct, userRaw, w);
+}
+
+/** 藏译汉判错时的「其实我答对了」：把这次答错改成答对。
+
+    中文的近义词没法穷举，判严了一定会误伤，所以留一个改判的出口。
+    藏译汉才有这个按钮——汉译藏那边判分是确定性的，不需要。 */
+function overrideToCorrect() {
+  var w = session.current;
+  if (!w) return;
+
+  var rec = recordOf(w.id);
+  if (rec) {
+    rec.wrong = Math.max(0, rec.wrong - 1);
+    rec.right += 1;
+    rec.streak += 1;
+    rec.last = Date.now();
+    saveStore(store);
+  }
+  // 刚才是「排到队尾」，现在改成直接出队（它就在队尾）
+  if (session.queue.length && session.queue[session.queue.length - 1].id === w.id) {
+    session.queue.pop();
+  }
+  // 只有「这次作答本来计了分」才需要把分改过来。
+  // 同一个词在一轮里第二次答错时是不计分的，那时改判也不能动统计，
+  // 否则会把正确率改得偏高。
+  if (session.lastCounted) {
+    session.wrong = Math.max(0, session.wrong - 1);
+    session.right += 1;
+  }
+  delete session.missedIds[w.id];
+
+  renderFeedback(true, session.lastUserRaw, w);
+}
+
+function renderFeedback(correct, userRaw, w) {
+  var fb = document.getElementById('feedback-area');
+  fb.classList.remove('hidden');
+  fb.className = 'feedback ' + (correct ? 'ok' : 'err');
+  fb.innerHTML = '';
+
+  var title = document.createElement('div');
+  title.className = 'fb-title';
+  title.textContent = correct ? '答对了 ✓' : '答错了 ✗';
+  fb.appendChild(title);
+
+  if (settings.mode === 'zh2bo') {
+    var diff = charDiff(normalizeForCompare(userRaw), normalizeForCompare(w.tibetan));
+    var box = document.createElement('div');
+    if (correct) {
+      box.innerHTML = '<div class="diff">' + diff.target + '</div>';
+    } else {
+      box.innerHTML =
+        '<div class="hint">你写的</div><div class="diff">' + diff.user + '</div>' +
+        '<div class="hint">正确答案</div><div class="diff">' + diff.target + '</div>';
+    }
+    fb.appendChild(box);
+  } else {
+    // 藏译汉：题面本来就是藏文，所以反馈里给的是中文参考答案
+    var bo = document.createElement('div');
+    bo.className = 'diff';
+    bo.textContent = w.tibetan;
+    fb.appendChild(bo);
+
+    if (String(userRaw || '').trim()) {
+      var yours = document.createElement('div');
+      yours.className = 'hint';
+      yours.style.marginTop = '6px';
+      yours.textContent = '你写的：' + userRaw;
+      fb.appendChild(yours);
+    }
+    var answer = document.createElement('div');
+    answer.style.fontSize = '20px';
+    answer.style.fontWeight = '700';
+    answer.textContent = '参考答案：' + w.meaning;
+    fb.appendChild(answer);
+  }
+  fb.insertAdjacentHTML('beforeend', breakdownHtml(w));
+
+  document.getElementById('quiz-actions').classList.add('hidden');
+  document.getElementById('keyboard-card').classList.add('hidden');
+  document.getElementById('quiz-actions-2').classList.remove('hidden');
+
+  // 藏译汉判错时给一个改判的出口（中文近义词没法穷举）
+  var successBtn = document.getElementById('btn-success');
+  successBtn.classList.toggle(
+    'hidden', correct || settings.mode !== 'bo2zh'
+  );
+  document.getElementById('btn-next').textContent =
+    session.queue.length ? '下一个' : '看小结';
+}
+
+function endSession() {
+  var total = session.right + session.wrong;
+  var rate = total ? Math.round(session.right / total * 100) : 0;
+  document.getElementById('summary-stats').innerHTML =
+    statBox(total, '本轮作答') +
+    statBox(session.right, '答对') +
+    statBox(session.wrong, '答错') +
+    statBox(rate + '%', '正确率');
+
+  var missed = Object.keys(session.missedIds).map(function (id) {
+    return BANK.filter(function (w) { return w.id === id; })[0];
+  }).filter(Boolean);
+
+  var card = document.getElementById('summary-missed-card');
+  var box = document.getElementById('summary-missed');
+  if (missed.length) {
+    card.classList.remove('hidden');
+    box.innerHTML = '';
+    missed.forEach(function (w) { box.appendChild(wordRow(w)); });
+  } else {
+    card.classList.add('hidden');
+  }
+  show('screen-summary');
+}
+
+function statBox(value, label) {
+  return '<div class="stat"><b>' + esc(value) + '</b><span>' + esc(label) + '</span></div>';
+}
+
+function wordRow(w) {
+  var row = document.createElement('div');
+  row.className = 'word-row';
+  var left = document.createElement('div');
+  var bo = document.createElement('div');
+  bo.className = 'bo tib';
+  bo.textContent = w.tibetan;
+  left.appendChild(bo);
+  var zh = document.createElement('div');
+  zh.className = 'zh';
+  zh.textContent = w.meaning;
+  left.appendChild(zh);
+  row.appendChild(left);
+  return row;
+}
+
+/* --------------------------------------------------------------------------
+   九、统计页
+   -------------------------------------------------------------------------- */
+function renderStats() {
+  var total = BANK.length;
+  var touched = 0, mastered = 0, right = 0, wrong = 0;
+  BANK.forEach(function (w) {
+    var rec = recordOf(w.id);
+    if (rec) {
+      touched += 1;
+      right += rec.right;
+      wrong += rec.wrong;
+    }
+    if (isMastered(w.id)) mastered += 1;
+  });
+  var ans = right + wrong;
+  document.getElementById('stats-overview').innerHTML =
+    statBox(total, '词库总量') +
+    statBox(touched, '练过的词') +
+    statBox(mastered, '已掌握') +
+    statBox(ans ? Math.round(right / ans * 100) + '%' : '—', '正确率');
+
+  var counts = tagCounts();
+  var box = document.getElementById('stats-by-tag');
+  box.innerHTML = '';
+  allTags().forEach(function (t) {
+    var words = BANK.filter(function (w) { return (w.tags || []).indexOf(t) >= 0; });
+    var m = words.filter(function (w) { return isMastered(w.id); }).length;
+    var pct = words.length ? (m / words.length * 100) : 0;
+
+    var row = document.createElement('div');
+    row.className = 'tag-row';
+    var name = document.createElement('div');
+    name.className = 'name';
+    name.innerHTML = '<div>' + esc(t) + '</div>' +
+      '<div class="mini-bar"><i style="width:' + pct.toFixed(1) + '%"></i></div>';
+    row.appendChild(name);
+    var num = document.createElement('div');
+    num.className = 'num';
+    num.textContent = m + ' / ' + (counts[t] || words.length);
+    row.appendChild(num);
+    box.appendChild(row);
+  });
+
+  var missed = BANK.filter(function (w) { return isMissed(w.id); });
+  var mbox = document.getElementById('stats-missed');
+  if (!missed.length) {
+    mbox.innerHTML = '<div class="hint">还没有答错的词。</div>';
+  } else {
+    mbox.innerHTML = '';
+    missed.forEach(function (w) {
+      var row = wordRow(w);
+      var rec = recordOf(w.id);
+      var num = document.createElement('div');
+      num.className = 'num muted';
+      num.style.fontSize = '13px';
+      num.textContent = '错 ' + rec.wrong + ' 次';
+      row.appendChild(num);
+      mbox.appendChild(row);
+    });
+  }
+}
+
+/* --------------------------------------------------------------------------
+   十、事件绑定
+   -------------------------------------------------------------------------- */
+Array.prototype.forEach.call(document.querySelectorAll('.mode-btn'), function (b) {
+  b.addEventListener('click', function () {
+    settings.mode = b.dataset.mode;
+    renderHome();
+  });
+});
+
+document.getElementById('opt-shuffle').addEventListener('change', function (e) {
+  settings.shuffle = e.target.checked;
+  renderHome();
+});
+document.getElementById('opt-only-missed').addEventListener('change', function (e) {
+  settings.onlyMissed = e.target.checked;
+  renderHome();
+});
+document.getElementById('btn-start').addEventListener('click', startSession);
+
+document.getElementById('kb-append').addEventListener('click', appendSyllable);
+document.getElementById('kb-back').addEventListener('click', function () {
+  answers.pop();
+  renderQuiz();
+});
+document.getElementById('kb-clear').addEventListener('click', function () {
+  resetKeyboardAnswer();
+  renderQuiz();
+});
+document.getElementById('kb-reset-syl').addEventListener('click', function () {
+  currentSyl = blankSyllable();
+  renderKeyboard();
+});
+
+document.getElementById('btn-submit').addEventListener('click', function () {
+  if (settings.mode === 'zh2bo') gradeZh2Bo();
+  else gradeBo2Zh();
+});
+
+// 藏译汉：边打字边决定「检查」能不能点；回车直接提交
+var meaningInput = document.getElementById('meaning-input');
+meaningInput.addEventListener('input', function () {
+  document.getElementById('btn-submit').disabled = !meaningInput.value.trim();
+});
+meaningInput.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter' && meaningInput.value.trim()) {
+    e.preventDefault();
+    gradeBo2Zh();
+  }
+});
+
+document.getElementById('btn-hint').addEventListener('click', function () {
+  var w = session.current;
+  session.hinted = true;
+  var fb = document.getElementById('feedback-area');
+  fb.classList.remove('hidden');
+  fb.className = 'feedback';
+  fb.style.background = 'var(--warn-bg)';
+  fb.innerHTML = '<div class="hint">提示：这个词有 ' + (w.components || []).length +
+    ' 个音节，组件构成如下</div>' + breakdownHtml(w);
+});
+
+document.getElementById('btn-giveup').addEventListener('click', function () {
+  // 「不会，看答案」= 主动放弃，直接记为答错并把答案展示出来
+  if (settings.mode === 'zh2bo') finishAnswer(false, '(未作答)', session.current);
+  else finishAnswer(false, meaningInput.value, session.current);
+});
+
+document.getElementById('btn-success').addEventListener('click', overrideToCorrect);
+
+document.getElementById('btn-next').addEventListener('click', function () {
+  var fb = document.getElementById('feedback-area');
+  fb.style.background = '';
+  document.getElementById('quiz-actions').classList.remove('hidden');
+  document.getElementById('btn-submit').classList.remove('hidden');
+  document.getElementById('btn-hint').classList.remove('hidden');
+  nextQuestion();
+});
+
+document.getElementById('nav-home').addEventListener('click', function () {
+  renderHome();
+  show('screen-home');
+});
+document.getElementById('nav-stats').addEventListener('click', function () {
+  renderStats();
+  show('screen-stats');
+});
+document.getElementById('btn-to-stats').addEventListener('click', function () {
+  renderStats();
+  show('screen-stats');
+});
+document.getElementById('btn-again').addEventListener('click', startSession);
+document.getElementById('btn-clear-progress').addEventListener('click', function () {
+  if (!window.confirm('确定清空全部学习进度吗？词库不受影响。')) return;
+  store = { words: {}, settings: {} };
+  saveStore(store);
+  renderStats();
+});
+
+/* --------------------------------------------------------------------------
+   启动
+   -------------------------------------------------------------------------- */
+if (!BANK.length) {
+  document.getElementById('screen-home').innerHTML =
+    '<div class="card"><h2>词库是空的</h2>' +
+    '<div class="hint">请用同目录的 <code>update_wordbank.py</code> 把词库写进本文件。</div></div>';
+} else {
+  renderHome();
+}
+
+// 暴露给测试用（tests/test_memorize.py 会用 dukpy 把这段脚本跑起来，
+// 拿这里的合成器跟工程里 tibetan.py 逐条比对，确保两份实现不会走偏）
+window.__zwjyMemory = {
+  BANK: BANK,
+  composeSyllable: composeSyllable,
+  composeWord: composeWord,
+  normalizeText: normalizeText,
+  normalizeForCompare: normalizeForCompare,
+  describeSyllable: describeSyllable,
+  meaningAlternatives: meaningAlternatives,
+  normalizeChinese: normalizeChinese,
+  meaningMatches: meaningMatches,
+  SUBJOINED_MAP: SUBJOINED_MAP,
+  SUBJOINED_TAIL: SUBJOINED_TAIL,
+  ROOTS: ROOTS, SUPERSCRIPTS: SUPERSCRIPTS, SUBJOINED: SUBJOINED,
+  VOWELS: VOWELS, PREFIXES: PREFIXES, SUFFIXES: SUFFIXES, SUFFIX2S: SUFFIX2S
+};
+
+})();
+</script>
+</body>
+</html>

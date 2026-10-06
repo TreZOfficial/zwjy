@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 测试缓存
+.pytest_cache/
+
+# 本地数据库（首次启动自动生成，不入库）
+data/words.db
+
+# 更新词库工具写文件时的临时文件
+*.tmp
+
+# 编辑器 / 工具
+.idea/
+.vscode/
+.claude/

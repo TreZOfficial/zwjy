@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}词条列表 · 藏语词汇工具{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>词条列表</h1>
+  <div class="sub">
+    共 {{ total_count }} 条{% if q or tag %}，当前筛选出 {{ words | length }} 条{% endif %}
+  </div>
+</div>
+
+<!-- 搜索与筛选 -->
+<div class="card">
+  <form method="get" action="/" class="search-bar">
+    <div class="field">
+      <label for="q">搜索（藏文 / 释义 / 备注 / 标签）</label>
+      <input type="search" id="q" name="q" value="{{ q }}" placeholder="例如：བོད 或 西藏 或 身体">
+    </div>
+    <div class="field">
+      <label for="tag">标签</label>
+      <select id="tag" name="tag">
+        <option value="">全部标签</option>
+        {% for item in all_tags %}
+          <option value="{{ item }}" {% if item == tag %}selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="sort">排序</label>
+      <select id="sort" name="sort">
+        {% for key, meta in sort_options.items() %}
+          <option value="{{ key }}" {% if key == sort %}selected{% endif %}>{{ meta[0] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="toolbar">
+      <button type="submit" class="btn btn-primary">搜索</button>
+      <a class="btn" href="/">重置</a>
+    </div>
+  </form>
+</div>
+
+<!-- 操作工具栏 -->
+<div class="card">
+  <div class="toolbar">
+    <a class="btn btn-primary" href="/words/new">+ 新增词条</a>
+    <button type="button" class="btn" id="btn-export-selected">导出勾选的词条</button>
+    <a class="btn" href="/export?scope=filtered&amp;q={{ q | urlencode }}&amp;tag={{ tag | urlencode }}">
+      导出当前筛选结果
+    </a>
+    <a class="btn" href="/export?scope=all">导出全部词条</a>
+    <span style="flex:1"></span>
+    {# 二次确认统一走 data-confirm + app.js 里的委托监听，不要用内联 onsubmit：
+       内联事件处理器里的用户数据会先被 HTML 解析器解码，含引号的内容会把
+       JS 字符串提前闭合，导致按钮静默失效（见 static/app.js 的说明）。 #}
+    <form method="post" action="/words/clear"
+          data-confirm="确定要清空全部 {{ total_count }} 条词条吗？此操作不可撤销。建议先用「备份 JSON」保存一份副本。">
+      <button type="submit" class="btn btn-danger btn-sm">清空全部词条</button>
+    </form>
+  </div>
+</div>
+
+<!-- 词条表格 -->
+<div class="card">
+  {% if words %}
+    <div class="table-scroll">
+      <table class="words">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="check-all" title="全选 / 全不选"></th>
+            <th>藏文词语</th>
+            <th>释义</th>
+            <th>标签</th>
+            <th>备注</th>
+            <th class="nowrap">音节</th>
+            <th class="nowrap">更新时间</th>
+            <th class="nowrap">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for word in words %}
+            <tr>
+              <td class="col-check">
+                <input type="checkbox" class="row-check" value="{{ word.id }}">
+              </td>
+              <td>
+                <span class="tibetan">{{ word.tibetan }}</span>
+                {% if not word.has_components %}
+                  <div class="muted" style="font-size:12px;">（无组件数据，无法回填音节卡片）</div>
+                {% endif %}
+              </td>
+              <td>{{ word.meaning or '—' }}</td>
+              <td>
+                {% for t in word.tags %}<span class="tag">{{ t }}</span>{% endfor %}
+                {% if not word.tags %}<span class="muted">—</span>{% endif %}
+              </td>
+              <td class="muted">{{ word.note or '—' }}</td>
+              <td class="muted nowrap">{{ word.syllable_count }} 个</td>
+              <td class="muted nowrap">{{ word.updated_at }}</td>
+              <td class="col-actions">
+                <a class="btn btn-sm" href="/words/{{ word.id }}/edit">编辑</a>
+                <form method="post" action="/words/{{ word.id }}/delete" style="display:inline"
+                      data-confirm="确定删除「{{ word.tibetan }}」吗？">
+                  <button type="submit" class="btn btn-sm btn-danger">删除</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <span class="tibetan">བོད་ཡིག</span>
+      {% if q or tag %}
+        没有找到符合条件的词条，换个关键字试试。
+      {% else %}
+        词库还是空的。点「新增词条」开始录入，或者展开下方的「备份导入」载入示例数据。
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <!-- 备份导入 -->
+  <details class="panel">
+    <summary>备份导入 / 载入示例数据</summary>
+    <form method="post" action="/backup/import" enctype="multipart/form-data">
+      <div class="form-row">
+        <label for="backup-file">选择 JSON 备份文件</label>
+        <input type="file" id="backup-file" name="file" accept=".json,application/json" required>
+        <div class="hint">
+          {# 这里刻意不写死词条数量：示例数据会增补，写死必然有一天对不上 #}
+          本项目自带示例数据：<code>data/sample_words.json</code>（常用词，覆盖全部 7 类组件，
+          含双下加字词形）。
+          也可以先用「备份 JSON」导出一份再改，格式是一样的。
+        </div>
+      </div>
+      <div class="form-row">
+        <label>导入方式</label>
+        <div class="radio-group">
+          <label><input type="radio" name="mode" value="append" checked> 追加合并（跳过重复词条）</label>
+          <label><input type="radio" name="mode" value="replace"> 清空后覆盖</label>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary">开始导入</button>
+    </form>
+  </details>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // 统一处理「删除」「清空」这类破坏性操作的二次确认。
+  //
+  // 刻意不用内联事件处理器（onsubmit / onclick）去拼用户数据：
+  // HTML 属性里的实体（&#39; 等）会先被 HTML 解析器还原成字符，再交给 JS 解析，
+  // 所以藏文/释义里只要有一个单引号，JS 字符串就会被提前闭合——
+  // 轻则按钮静默失效（点了没反应，也不报错），重则被注入代码。
+  // 放在 data-* 属性里读取就没有这个问题：
+  // dataset 拿到的永远是一个完整的 JS 字符串。
+  // 回归测试见 tests/test_app.py::test_no_user_data_is_ever_pasted_into_inline_handlers
+  document.querySelectorAll('form[data-confirm]').forEach((form) => {
+    form.addEventListener('submit', (event) => {
+      if (!window.confirm(form.dataset.confirm)) event.preventDefault();
+    });
+  });
+
+  // 全选 / 全不选
+  const checkAll = document.getElementById('check-all');
+  const rowChecks = Array.from(document.querySelectorAll('.row-check'));
+  if (checkAll) {
+    checkAll.addEventListener('change', () => {
+      rowChecks.forEach(box => { box.checked = checkAll.checked; });
+    });
+    rowChecks.forEach(box => box.addEventListener('change', () => {
+      checkAll.checked = rowChecks.length > 0 && rowChecks.every(b => b.checked);
+    }));
+  }
+
+  // 导出勾选的词条
+  const exportBtn = document.getElementById('btn-export-selected');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      const ids = rowChecks.filter(b => b.checked).map(b => b.value);
+      if (ids.length === 0) {
+        alert('请先在列表左侧勾选要导出的词条。');
+        return;
+      }
+      window.location.href = '/export?scope=selected&ids=' + encodeURIComponent(ids.join(','));
+    });
+  }
+</script>
+{% endblock %}

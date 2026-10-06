@@ -1,0 +1,574 @@
+{
+  "format": "zwjy-tibetan-vocabulary",
+  "version": 2,
+  "exported_at": "2026-01-01 09:00:00",
+  "note": "示例数据：33 个常用藏语词，每个词都带完整的音节组件，导入后可以在编辑页回填音节卡片。其中 གྲྭ、ཕྱྭ、དྲྭ་བ 是双下加字的示例（藏文里下加字之上通常只再跟一个 ྭ/wa-zur，如 གྲྭ、དྲྭ、ཕྱྭ）。载入方式：首页 -> 展开「备份导入 / 载入示例数据」-> 选择本文件 -> 追加合并。",
+  "count": 33,
+  "words": [
+    {
+      "tibetan": "མི།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "མ", "subjoined": [], "vowel": "ི", "suffix": "", "suffix2": ""}
+        ]
+      },
+      "meaning": "人",
+      "note": "基础名词。元音 ི 直接跟在基字 མ 之后。",
+      "tags": ["名词"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:00:00",
+      "updated_at": "2026-01-01 09:00:00"
+    },
+    {
+      "tibetan": "ཆུ།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "ཆ", "subjoined": [], "vowel": "ུ", "suffix": "", "suffix2": ""}
+        ]
+      },
+      "meaning": "水",
+      "note": "",
+      "tags": ["名词"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:01:00",
+      "updated_at": "2026-01-01 09:01:00"
+    },
+    {
+      "tibetan": "མེ།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "མ", "subjoined": [], "vowel": "ེ", "suffix": "", "suffix2": ""}
+        ]
+      },
+      "meaning": "火",
+      "note": "",
+      "tags": ["名词"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:02:00",
+      "updated_at": "2026-01-01 09:02:00"
+    },
+    {
+      "tibetan": "རི།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "ར", "subjoined": [], "vowel": "ི", "suffix": "", "suffix2": ""}
+        ]
+      },
+      "meaning": "山",
+      "note": "",
+      "tags": ["名词", "自然"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:03:00",
+      "updated_at": "2026-01-01 09:03:00"
+    },
+    {
+      "tibetan": "ནམ།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "ན", "subjoined": [], "vowel": "", "suffix": "མ", "suffix2": ""}
+        ]
+      },
+      "meaning": "天空；夜",
+      "note": "后加字 མ 收尾，注意与「ན་མ」区分。",
+      "tags": ["名词", "自然"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:04:00",
+      "updated_at": "2026-01-01 09:04:00"
+    },
+    {
+      "tibetan": "ས།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "ས", "subjoined": [], "vowel": "", "suffix": "", "suffix2": ""}
+        ]
+      },
+      "meaning": "土地；土壤",
+      "note": "只有一个基字，没有其他组件。",
+      "tags": ["名词"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:05:00",
+      "updated_at": "2026-01-01 09:05:00"
+    },
+    {
+      "tibetan": "ཁ།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "ཁ", "subjoined": [], "vowel": "", "suffix": "", "suffix2": ""}
+        ]
+      },
+      "meaning": "口；嘴",
+      "note": "",
+      "tags": ["名词", "身体"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:06:00",
+      "updated_at": "2026-01-01 09:06:00"
+    },
+    {
+      "tibetan": "ལག།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "ལ", "subjoined": [], "vowel": "", "suffix": "ག", "suffix2": ""}
+        ]
+      },
+      "meaning": "手；手臂",
+      "note": "",
+      "tags": ["名词", "身体"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:07:00",
+      "updated_at": "2026-01-01 09:07:00"
+    },
+    {
+      "tibetan": "མིག།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "མ", "subjoined": [], "vowel": "ི", "suffix": "ག", "suffix2": ""}
+        ]
+      },
+      "meaning": "眼睛",
+      "note": "元音在前，后加字在后。",
+      "tags": ["名词", "身体"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:08:00",
+      "updated_at": "2026-01-01 09:08:00"
+    },
+    {
+      "tibetan": "རྣ།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "ར", "root": "ན", "subjoined": [], "vowel": "", "suffix": "", "suffix2": ""}
+        ]
+      },
+      "meaning": "耳朵",
+      "note": "有上加字 ར 时，基字 ན 必须写成下加形式 ྣ。",
+      "tags": ["名词", "身体"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:09:00",
+      "updated_at": "2026-01-01 09:09:00"
+    },
+    {
+      "tibetan": "སྣ།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "ས", "root": "ན", "subjoined": [], "vowel": "", "suffix": "", "suffix2": ""}
+        ]
+      },
+      "meaning": "鼻子",
+      "note": "与「རྣ」对比记忆：上加字不同。",
+      "tags": ["名词", "身体"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:10:00",
+      "updated_at": "2026-01-01 09:10:00"
+    },
+    {
+      "tibetan": "ལྕེ།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "ལ", "root": "ཅ", "subjoined": [], "vowel": "ེ", "suffix": "", "suffix2": ""}
+        ]
+      },
+      "meaning": "舌头",
+      "note": "元音符号写在下加形式 ྕ 之后。",
+      "tags": ["名词", "身体"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:11:00",
+      "updated_at": "2026-01-01 09:11:00"
+    },
+    {
+      "tibetan": "སེམས།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "ས", "subjoined": [], "vowel": "ེ", "suffix": "མ", "suffix2": "ས"}
+        ]
+      },
+      "meaning": "心；心意",
+      "note": "含再后加字 ས，只能跟在 ག / ང / བ / མ 之后。",
+      "tags": ["名词", "身体"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:12:00",
+      "updated_at": "2026-01-01 09:12:00"
+    },
+    {
+      "tibetan": "བོད།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "བ", "subjoined": [], "vowel": "ོ", "suffix": "ད", "suffix2": ""}
+        ]
+      },
+      "meaning": "西藏；藏地",
+      "note": "藏语对本民族地区的称呼。",
+      "tags": ["名词", "地名"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:13:00",
+      "updated_at": "2026-01-01 09:13:00"
+    },
+    {
+      "tibetan": "སྐད།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "ས", "root": "ཀ", "subjoined": [], "vowel": "", "suffix": "ད", "suffix2": ""}
+        ]
+      },
+      "meaning": "语言；话",
+      "note": "「བོད་སྐད」= 藏语。",
+      "tags": ["名词"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:14:00",
+      "updated_at": "2026-01-01 09:14:00"
+    },
+    {
+      "tibetan": "ཡིག།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "ཡ", "subjoined": [], "vowel": "ི", "suffix": "ག", "suffix2": ""}
+        ]
+      },
+      "meaning": "文字；书信",
+      "note": "「བོད་ཡིག」= 藏文。",
+      "tags": ["名词"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:15:00",
+      "updated_at": "2026-01-01 09:15:00"
+    },
+    {
+      "tibetan": "གྲོགས།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "ག", "subjoined": ["ར"], "vowel": "ོ", "suffix": "ག", "suffix2": "ས"}
+        ]
+      },
+      "meaning": "朋友",
+      "note": "下加字 ར 要写成 ྲ，再往后才是元音。",
+      "tags": ["名词"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:16:00",
+      "updated_at": "2026-01-01 09:16:00"
+    },
+    {
+      "tibetan": "བྱ།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "བ", "subjoined": ["ཡ"], "vowel": "", "suffix": "", "suffix2": ""}
+        ]
+      },
+      "meaning": "鸟",
+      "note": "下加字 ཡ 写成 ྱ。",
+      "tags": ["名词", "动物"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:17:00",
+      "updated_at": "2026-01-01 09:17:00"
+    },
+    {
+      "tibetan": "གློག།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "ག", "subjoined": ["ལ"], "vowel": "ོ", "suffix": "ག", "suffix2": ""}
+        ]
+      },
+      "meaning": "电；电灯",
+      "note": "下加字 ལ 写成 ླ。",
+      "tags": ["名词"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:18:00",
+      "updated_at": "2026-01-01 09:18:00"
+    },
+    {
+      "tibetan": "ཉི་མ།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "ཉ", "subjoined": [], "vowel": "ི", "suffix": "", "suffix2": ""},
+          {"prefix": "", "superscript": "", "root": "མ", "subjoined": [], "vowel": "", "suffix": "", "suffix2": ""}
+        ]
+      },
+      "meaning": "太阳；日子",
+      "note": "两个音节，中间的 ་ 是自动加上的间隔符。",
+      "tags": ["名词", "多音节"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:19:00",
+      "updated_at": "2026-01-01 09:19:00"
+    },
+    {
+      "tibetan": "ཟླ་བ།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "ཟ", "subjoined": ["ལ"], "vowel": "", "suffix": "", "suffix2": ""},
+          {"prefix": "", "superscript": "", "root": "བ", "subjoined": [], "vowel": "", "suffix": "", "suffix2": ""}
+        ]
+      },
+      "meaning": "月亮；月份",
+      "note": "第一个音节含下加字 ལ。",
+      "tags": ["名词", "多音节"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:20:00",
+      "updated_at": "2026-01-01 09:20:00"
+    },
+    {
+      "tibetan": "མི་སེར།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "མ", "subjoined": [], "vowel": "ི", "suffix": "", "suffix2": ""},
+          {"prefix": "", "superscript": "", "root": "ས", "subjoined": [], "vowel": "ེ", "suffix": "ར", "suffix2": ""}
+        ]
+      },
+      "meaning": "人民",
+      "note": "「མི」（人）+「སེར」，注意第二个音节的后加字 ར。",
+      "tags": ["名词", "多音节"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:21:00",
+      "updated_at": "2026-01-01 09:21:00"
+    },
+    {
+      "tibetan": "རྒྱལ།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "ར", "root": "ག", "subjoined": ["ཡ"], "vowel": "", "suffix": "ལ", "suffix2": ""}
+        ]
+      },
+      "meaning": "胜利；王",
+      "note": "上加字 + 基字 + 下加字三层堆叠：ར + ྒ + ྱ = རྒྱ。",
+      "tags": ["名词"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:22:00",
+      "updated_at": "2026-01-01 09:22:00"
+    },
+    {
+      "tibetan": "བསྒྲུབས།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "བ", "superscript": "ས", "root": "ག", "subjoined": ["ར"], "vowel": "ུ", "suffix": "བ", "suffix2": "ས"}
+        ]
+      },
+      "meaning": "完成；成就（动词完成体）",
+      "note": "七个组件全部用上：前加字 བ + 上加字 ས + 基字 ག + 下加字 ར + 元音 ུ + 后加字 བ + 再后加字 ས。",
+      "tags": ["动词"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:23:00",
+      "updated_at": "2026-01-01 09:23:00"
+    },
+    {
+      "tibetan": "མཐོ།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "མ", "root": "ཐ", "superscript": "", "subjoined": [], "vowel": "ོ", "suffix": "", "suffix2": ""}
+        ]
+      },
+      "meaning": "高（形容词）",
+      "note": "前加字 མ + 基字 ཐ + 元音 ོ。",
+      "tags": ["形容词"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:24:00",
+      "updated_at": "2026-01-01 09:24:00"
+    },
+    {
+      "tibetan": "བཟང།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "བ", "superscript": "", "root": "ཟ", "subjoined": [], "vowel": "", "suffix": "ང", "suffix2": ""}
+        ]
+      },
+      "meaning": "好；善良",
+      "note": "前加字 བ + 基字 ཟ + 后加字 ང。",
+      "tags": ["形容词"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:25:00",
+      "updated_at": "2026-01-01 09:25:00"
+    },
+    {
+      "tibetan": "དམར།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "ད", "superscript": "", "root": "མ", "subjoined": [], "vowel": "", "suffix": "ར", "suffix2": ""}
+        ]
+      },
+      "meaning": "红（颜色）",
+      "note": "前加字 ད + 基字 མ + 后加字 ར。",
+      "tags": ["形容词", "颜色"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:26:00",
+      "updated_at": "2026-01-01 09:26:00"
+    },
+    {
+      "tibetan": "ལྗང།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "ལ", "root": "ཇ", "subjoined": [], "vowel": "", "suffix": "ང", "suffix2": ""}
+        ]
+      },
+      "meaning": "绿（颜色）",
+      "note": "上加字 ལ + 基字 ཇ 写成 ྗ。",
+      "tags": ["形容词", "颜色"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:27:00",
+      "updated_at": "2026-01-01 09:27:00"
+    },
+    {
+      "tibetan": "ཁྱོད།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "ཁ", "subjoined": ["ཡ"], "vowel": "ོ", "suffix": "ད", "suffix2": ""}
+        ]
+      },
+      "meaning": "你（敬语多用 ཁྱེད་རང）",
+      "note": "下加字 ཡ 写成 ྱ，再加元音 ོ 与后加字 ད。",
+      "tags": ["代词"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:28:00",
+      "updated_at": "2026-01-01 09:28:00"
+    },
+    {
+      "tibetan": "སྐུ།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "ས", "root": "ཀ", "subjoined": [], "vowel": "ུ", "suffix": "", "suffix2": ""}
+        ]
+      },
+      "meaning": "身体（敬语）；身",
+      "note": "上加字 ས + 基字 ཀ 写成 ྐ + 元音 ུ。",
+      "tags": ["名词"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:29:00",
+      "updated_at": "2026-01-01 09:29:00"
+    },
+    {
+      "tibetan": "གྲྭ།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "ག", "subjoined": ["ར", "ཝ"], "vowel": "", "suffix": "", "suffix2": ""}
+        ]
+      },
+      "meaning": "寺院；僧团（གྲྭ་པ = 僧人）",
+      "note": "双下加字的词形之一：基字 ག 下先叠 ྲ 再叠 ྭ。藏文本土词汇里两个下加字的组合只有 གྲྭ 和 ཕྱྭ 两类。",
+      "tags": ["名词", "双下加字"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:30:00",
+      "updated_at": "2026-01-01 09:30:00"
+    },
+    {
+      "tibetan": "ཕྱྭ།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "ཕ", "subjoined": ["ཡ", "ཝ"], "vowel": "", "suffix": "", "suffix2": ""}
+        ]
+      },
+      "meaning": "预兆；征兆；福运",
+      "note": "双下加字的另一个词形：基字 ཕ 下先叠 ྱ 再叠 ྭ。常见搭配如 ཕྱྭ་བཟང་པོ（好兆头）。",
+      "tags": ["名词", "双下加字"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:31:00",
+      "updated_at": "2026-01-01 09:31:00"
+    },
+    {
+      "tibetan": "དྲྭ་བ།",
+      "components": {
+        "version": 2,
+        "auto_join": true,
+        "trailing_shad": true,
+        "syllables": [
+          {"prefix": "", "superscript": "", "root": "ད", "subjoined": ["ར", "ཝ"], "vowel": "", "suffix": "", "suffix2": ""},
+          {"prefix": "", "superscript": "", "root": "བ", "subjoined": [], "vowel": "", "suffix": "", "suffix2": ""}
+        ]
+      },
+      "meaning": "网子；网络（ཆུ་དྲྭ་བ = 渔网，གློག་དྲྭ = 电网／互联网）",
+      "note": "第一个音节是双下加字 དྲྭ（基字 ད + ྲ + ྭ），第二个音节是 བ，中间用 ་ 连接。",
+      "tags": ["名词", "双下加字", "多音节"],
+      "auto_join": true,
+      "created_at": "2026-01-01 09:32:00",
+      "updated_at": "2026-01-01 09:32:00"
+    }
+  ]
+}

@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}{{ '新增词条' if mode == 'new' else '编辑词条' }} · 藏语词汇工具{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>{{ '新增词条' if mode == 'new' else '编辑词条' }}</h1>
+  <div class="sub">按音节录入：每个音节分别选择前加字、上加字、基字、下加字、元音、后加字、再后加字</div>
+</div>
+
+<form method="post"
+      action="{{ '/words' if mode == 'new' else '/words/' ~ word.id }}"
+      id="word-form">
+  {# 提交时由 JS 填入：完整的组件 JSON，以及合成后的藏文（服务端会重新合成一次） #}
+  <input type="hidden" name="components_json" id="components_json">
+  <input type="hidden" name="tibetan" id="tibetan_hidden">
+
+  <div class="layout-edit">
+    <!-- ------------------------------------------------ 左：音节卡片 -->
+    <div>
+      <div class="card">
+        <h3>音节</h3>
+
+        {# 没有组件数据的词条（从别处导入的、或手工改过备份的）没法用音节卡片表达。
+           这种情况下给一个直接输入藏文的框，否则用户进来只想改个释义都保存不了。 #}
+        {% if mode == 'edit' and word and not word.has_components %}
+          <div class="form-row">
+            <label for="tibetan_text">藏文（该词条没有音节组件，可直接编辑）</label>
+            <input type="text" id="tibetan_text" class="tibetan-input"
+                   value="{{ word.tibetan }}"
+                   placeholder="直接输入或粘贴藏文，例如 བོད">
+            <div class="hint">
+              这个词条是导入进来的，没有可回填的音节组件。你可以直接改上面的藏文；
+              也可以在下面用音节卡片重新录入——<strong>只要卡片里填了基字，就以卡片的合成结果为准</strong>。
+            </div>
+          </div>
+        {% endif %}
+
+        <div id="syllables"></div>
+
+        <div class="toolbar" style="margin-top: 6px;">
+          <button type="button" class="btn" id="btn-add-syllable">+ 添加音节</button>
+          <label class="checkbox-line" for="auto_join">
+            <input type="checkbox" id="auto_join" name="auto_join" {% if initial.auto_join %}checked{% endif %}>
+            音节之间自动用藏文间隔符 <span class="tibetan-sm">་</span> 连接
+          </label>
+          <label class="checkbox-line" for="trailing_shad">
+            <input type="checkbox" id="trailing_shad" name="trailing_shad" {% if initial.trailing_shad %}checked{% endif %}>
+            词尾加 <span class="tibetan-sm">།</span>（ཤད）
+          </label>
+        </div>
+        <div class="hint">
+          取消「་ 连接」后，多个音节将直接首尾相连。基字为必选，其余组件都可以留空。
+          下加字可以叠多层：藏文里下加字之上通常只再跟一个 <span class="tibetan-sm">ྭ</span>（wa-zur），
+          如 <span class="tibetan-sm">གྲྭ</span>、<span class="tibetan-sm">དྲྭ་བ</span>。
+          <br>
+          <span class="tibetan-sm">།</span>（ཤད）原本是句末标点，单个词语并不需要，
+          但词汇表里习惯写成 <span class="tibetan-sm">ཀ། ཁ། ག།</span>，所以默认给每个词都加上。
+          两个开关都跟着词条保存，下次编辑会自动回填。
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>词条信息</h3>
+        <div class="form-row">
+          <label for="meaning">中文释义</label>
+          <textarea id="meaning" name="meaning" placeholder="例如：西藏、藏地">{{ word.meaning if word else '' }}</textarea>
+        </div>
+        <div class="form-row">
+          <label for="tags">标签</label>
+          <input type="text" id="tags" name="tags" value="{{ word.tags_text if word else '' }}"
+                 placeholder="多个标签用逗号或顿号分隔，例如：名词, 地名">
+        </div>
+        <div class="form-row">
+          <label for="note">备注</label>
+          <textarea id="note" name="note" placeholder="例如：发音要点、常见搭配">{{ word.note if word else '' }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- ------------------------------------------------ 右：实时预览 -->
+    <div class="preview-box">
+      <div class="card">
+        <h3>实时预览</h3>
+        <div class="preview-tibetan" id="preview">&nbsp;</div>
+        <div class="preview-label" id="preview-meta"></div>
+        <div class="issues" id="issues"></div>
+      </div>
+
+      <div class="card">
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="btn-save">保存词条</button>
+          <a class="btn" href="/">取消</a>
+        </div>
+        {% if saved %}
+          <div class="hint" style="color: var(--warn);">该词条存在组合提示（见上方），已照常保存。</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</form>
+
+{# ---------- 音节卡片模板：由 JS 克隆生成，保证初始卡片与新增卡片结构完全一致 ---------- #}
+<template id="syllable-template">
+  <div class="syllable-card">
+    <div class="syllable-head">
+      <span class="index">音节 <span class="index-num"></span></span>
+      <button type="button" class="btn btn-sm btn-danger btn-remove">删除音节</button>
+    </div>
+    <div class="syllable-grid">
+      {% for key in ['prefix', 'superscript', 'root'] %}
+        <div class="field">
+          <label>{{ component_labels[key] }}{% if key == 'root' %}（必选）{% endif %}</label>
+          <select class="tibetan-select" data-component="{{ key }}">
+            {% for opt in options[key] %}
+              <option value="{{ opt.value }}">{{ opt.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      {% endfor %}
+
+      {# 下加字可以叠多层：默认只长出一层，点「加一层」才会出现更多 #}
+      <div class="field field-subjoined">
+        <label>{{ component_labels['subjoined'] }}</label>
+        <div class="subjoined-rows"></div>
+        <button type="button" class="btn btn-sm btn-add-subjoined">+ 加一层</button>
+      </div>
+
+      {% for key in ['vowel', 'suffix', 'suffix2'] %}
+        <div class="field">
+          {# 元音的「留空 = 默认元音 a」写在字段名上：选项里写全太宽，
+             下拉框字号开得大，会把它撑破 #}
+          <label>{{ component_labels[key] }}{% if key == 'vowel' %}（留空＝默认 a）{% endif %}</label>
+          <select class="tibetan-select" data-component="{{ key }}">
+            {% for opt in options[key] %}
+              <option value="{{ opt.value }}">{{ opt.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="syllable-preview"></div>
+  </div>
+</template>
+
+{# 下加字单层模板：由 JS 克隆，可以叠到「加一层」为止（上限由服务端 MAX_SUBJOINED 给出） #}
+<template id="subjoined-row-template">
+  <div class="subjoined-row">
+    <select class="tibetan-select" data-component="subjoined">
+      {% for opt in options['subjoined'] %}
+        <option value="{{ opt.value }}">{{ opt.label }}</option>
+      {% endfor %}
+    </select>
+    <button type="button" class="btn btn-sm btn-remove-subjoined" title="删除这一层">×</button>
+  </div>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // 服务端回填的初始音节结构
+  const INITIAL = {{ initial | tojson }};
+  // 一个音节最多能叠几层下加字（与 tibetan.MAX_SUBJOINED 保持一致）
+  const MAX_SUBJOINED = {{ max_subjoined }};
+</script>
+<script src="/static/app.js"></script>
+{% endblock %}

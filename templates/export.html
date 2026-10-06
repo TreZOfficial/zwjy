@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block title %}导出 Word · 藏语词汇工具{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>导出 Word</h1>
+  <div class="sub">
+    导出范围：<span class="scope-badge">{{ scope_name }}</span>
+    ，共 <strong>{{ row_count }}</strong> 条词条
+  </div>
+</div>
+
+<form method="post" action="/export/docx" id="export-form">
+  {# 把当前的筛选条件原样带回服务端。
+     注意这里不带 sort：导出顺序由下面的「顺序 / 乱序」决定，
+     顺序导出固定按录入先后（创建时间升序），与列表页的排序无关。 #}
+  <input type="hidden" name="scope" value="{{ scope }}">
+  <input type="hidden" name="q" value="{{ q }}">
+  <input type="hidden" name="tag" value="{{ tag }}">
+  <input type="hidden" name="ids" value="{{ ids }}">
+
+  <div class="layout-edit">
+    <div>
+      <div class="card">
+        <h3>排版</h3>
+        <div class="form-row">
+          <label>排版方式</label>
+          <div class="radio-group">
+            {% for key in layout_choices %}
+              <label>
+                <input type="radio" name="layout" value="{{ key }}"
+                       {% if key == 'columns' %}checked{% endif %} class="layout-choice">
+                {{ layouts[key] }}{% if key == 'columns' %}（每页分几栏，像词汇表那样一篇排下去）{% else %}（每行一个词条，左藏文右释义）{% endif %}
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="form-row" id="row-columns">
+          <label for="column_count">栏数</label>
+          <select id="column_count" name="column_count" style="max-width: 160px;">
+            {% for n in column_choices %}
+              <option value="{{ n }}" {% if n == default_column_count %}selected{% endif %}>{{ n }} 栏</option>
+            {% endfor %}
+          </select>
+          <div class="hint">
+            3 栏是默认值。横向 A4 时每栏约 8.4cm，纵向只有 5.3cm——所以默认用横向页面。
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>文档设置</h3>
+        <div class="form-row">
+          <label for="title">文档标题</label>
+          <input type="text" id="title" name="title" value="{{ default_title }}"
+                 placeholder="留空则不在文档里显示标题">
+          <div class="hint">标题居中显示在正文上方（分栏时标题独占整行宽度），也会成为导出文件名的一部分。</div>
+        </div>
+
+        <div class="form-row">
+          <label>页面方向</label>
+          <div class="radio-group">
+            <label><input type="radio" name="landscape" value="on" checked> 横向</label>
+            <label><input type="radio" name="landscape" value=""> 纵向</label>
+          </div>
+          <div class="hint">分栏时建议横向，否则每栏太窄、藏文和释义会挤在一起。</div>
+        </div>
+
+        <div class="form-row">
+          <label>导出顺序</label>
+          <div class="radio-group">
+            <label>
+              <input type="radio" name="order" value="sequential" checked>
+              顺序导出（按录入的先后顺序）
+            </label>
+            <label>
+              <input type="radio" name="order" value="random">
+              乱序导出（打乱后导出）
+            </label>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label for="seed">随机种子（仅乱序导出时生效）</label>
+          <input type="text" id="seed" name="seed" placeholder="留空 = 每次都不一样；填写任意数字或文字 = 结果可复现">
+          <div class="hint">
+            想导出同一套乱序题目做两次对比时，填同一个种子即可得到完全相同的顺序。
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>内容设置</h3>
+        <div class="form-row">
+          <label class="checkbox-line" for="include_meaning">
+            <input type="checkbox" id="include_meaning" name="include_meaning" checked>
+            包含释义（表格分成「藏文 | 释义」两列）
+          </label>
+          <div class="hint">取消勾选后，表格只保留藏文一列。</div>
+        </div>
+
+        <div class="form-row">
+          <label class="checkbox-line" for="hide_meaning">
+            <input type="checkbox" id="hide_meaning" name="hide_meaning">
+            隐藏释义（自测用：右列留白，打印后可自填）
+          </label>
+          <div class="hint">
+            需要先勾选「包含释义」才有意义。勾选后仍保留两列表格，但右列是空的，
+            适合先自测再对照。
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label for="tibetan_size">藏文字号</label>
+          <select id="tibetan_size" name="tibetan_size" style="max-width: 220px;">
+            {% for size in tibetan_sizes %}
+              <option value="{{ size }}" {% if size == default_tibetan_size %}selected{% endif %}>
+                {{ tibetan_size_labels[size] }}
+              </option>
+            {% endfor %}
+          </select>
+          <div class="hint">
+            藏文默认比中文正文大不少，而且一律<strong>加粗</strong>。
+            原因是藏文字体为了容纳三四层高的辅音堆叠，单个基字只占字身的四成左右——
+            同样磅值下藏文看着比中文小得多，不加粗放大打印出来会发虚。
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label for="tibetan_font">藏文字体（复杂文本字体）</label>
+          <select id="tibetan_font" name="tibetan_font">
+            {% for font in fonts %}
+              <option value="{{ font }}">{{ font }}</option>
+            {% endfor %}
+          </select>
+          <div class="hint">
+            导出时会把该字体写入 run 的 <code>w:rFonts</code> 的 <code>cs</code> / <code>eastAsia</code>
+            属性，并设置 <code>w:szCs</code>，确保 Word 里能正确显示藏文。
+            电脑上没装的字体，Word 会自动回退。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="preview-box">
+      <div class="card">
+        <h3>导出预览</h3>
+        {% if preview_rows %}
+          <div class="export-preview">
+            <table>
+              <thead>
+                <tr>
+                  <th>藏文词语</th>
+                  <th id="preview-meaning-head">释义</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for word in preview_rows %}
+                  <tr>
+                    <td><span class="tibetan-sm">{{ word.tibetan }}</span></td>
+                    <td class="preview-meaning">{{ word.meaning or '—' }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% if row_count > preview_rows | length %}
+            <div class="hint" style="margin-top: 8px;">
+              仅预览前 {{ preview_rows | length }} 条，实际导出 {{ row_count }} 条。
+            </div>
+          {% endif %}
+        {% else %}
+          <div class="empty-state" style="padding: 24px 10px;">
+            <span class="tibetan" style="font-size: 30px;">བོད</span>
+            当前范围内没有词条，请返回列表调整筛选条件。
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="card">
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" {% if not preview_rows %}disabled{% endif %}>
+            生成并下载 .docx
+          </button>
+          <a class="btn" href="/">返回列表</a>
+        </div>
+        <div class="hint">
+          文件名形如：<code>藏语词汇_顺序_20260101.docx</code> 或 <code>藏语词汇_乱序_20260101.docx</code>。
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // 「栏数」只在分栏排版下才有意义，选表格时把它收起来
+  const layoutChoices = Array.from(document.querySelectorAll('.layout-choice'));
+  const columnsRow = document.getElementById('row-columns');
+
+  function syncLayout() {
+    const picked = layoutChoices.find((el) => el.checked);
+    const isColumns = !picked || picked.value === 'columns';
+    columnsRow.style.display = isColumns ? '' : 'none';
+  }
+
+  layoutChoices.forEach((el) => el.addEventListener('change', syncLayout));
+  syncLayout();
+
+  // 实时反映「包含释义 / 隐藏释义」两个开关对预览表的影响
+  const includeEl = document.getElementById('include_meaning');
+  const hideEl = document.getElementById('hide_meaning');
+  const meaningHead = document.getElementById('preview-meaning-head');
+  const meaningCells = Array.from(document.querySelectorAll('.preview-meaning'));
+
+  function syncPreview() {
+    const include = includeEl.checked;
+    const hide = hideEl.checked;
+
+    meaningHead.style.display = include ? '' : 'none';
+    meaningCells.forEach((cell) => {
+      // 隐藏释义时预览里显示一个占位符，而不是直接把答案摆出来
+      const text = cell.dataset.text || cell.textContent.trim();
+      if (!cell.dataset.text) cell.dataset.text = text;
+
+      if (!include) {
+        cell.style.display = 'none';
+      } else {
+        cell.style.display = '';
+        cell.textContent = hide ? '（留白）' : cell.dataset.text;
+      }
+    });
+
+    hideEl.disabled = !include;
+    if (!include) hideEl.checked = false;
+  }
+
+  includeEl.addEventListener('change', syncPreview);
+  hideEl.addEventListener('change', syncPreview);
+  syncPreview();
+</script>
+{% endblock %}

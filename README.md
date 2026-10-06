@@ -441,20 +441,38 @@ python update_wordbank.py 新词库.json -o 别的.html
 ### 托管到 GitHub Pages
 
 单文件 HTML 天生适合 GitHub Pages，没有构建步骤、没有后端、没有跨域问题。
-几个注意事项：
 
-1. **文件名要是 `index.html`**，放在仓库根目录（或用 `docs/` 目录并在设置里指定）。
-2. **可以把 `memorize/` 当作一个独立仓库推上去**——它只依赖这两个文件，
-   不需要主工程。`update_wordbank.py` 只需要主工程的 `tibetan.py` 来校验，
-   不想带的话也可以只推 HTML。
-3. **本地打开和线上打开是两套进度。** `file://` 的源和 `https://用户名.github.io`
-   是两个不同的源，localStorage 互不相通。以后主要在线上用，就固定用线上。
-4. **同一个账号下的多个词库共享 localStorage 命名空间**，所以必须用
-   `--bank-id` 区分（见上文）。
-5. **换设备 / 清浏览器数据 = 进度丢失。** 进度只在那一台浏览器里。
-6. **HTML 会被浏览器缓存**，更新之后如果看着没变，先 Ctrl+F5 强刷。
+**本仓库已经按这个方式配好了**：
+
+```
+memorize/index.html   源文件（改完先看这个）
+docs/index.html       GitHub Pages 的发布副本
+docs/.nojekyll        关掉 Jekyll 处理
+```
+
+**两份 HTML 由 `update_wordbank.py` 一次写两处，不要手动复制。**
+两份各自演化是必然会发生的，而且很难发现——本地改了、线上还是旧版。
+`tests/test_memorize.py::test_pages_mirror_is_up_to_date` 会盯着这件事，
+手动改了一份而没跑更新工具，测试就红。
+
+发布地址（在仓库 Settings → Pages 里把 Source 设成 `main` 分支的 `/docs` 目录）：
+
+```
+https://trezofficial.github.io/zwjy/
+```
+
+其余注意事项：
+
+1. **本地打开和线上打开是两套进度。** `file://` 的源和
+   `https://用户名.github.io` 是两个不同的源，localStorage 互不相通。
+   以后主要在线上用，就固定用线上。
+2. **同一个账号下的多个词库共享 localStorage 命名空间**，所以必须用
+   `--bank-id` 区分（见上文）。发布副本共用同一个 `data-bank-id`，
+   换词库时记得也换名字，否则进度会串。
+3. **换设备 / 清浏览器数据 = 进度丢失。** 进度只在那一台浏览器里。
+4. **HTML 会被浏览器缓存**，更新之后如果看着没变，先 Ctrl+F5 强刷。
    GitHub Pages 自己的缓存一般 10 分钟。
-7. 词库是内嵌的，所以**改词库 = 改 HTML = 一次 commit**。
+5. 词库是内嵌的，所以**改词库 = 改 HTML = 一次 commit**。
    JSON 是按字段换行的，改动只会体现在相应那几行上，diff 很小、看得清。
 
 ---
@@ -505,6 +523,9 @@ zwjy/
 ├── memorize/             单文件记忆工具（独立使用，零依赖）
 │   ├── index.html        双击即用：内嵌词库 + 软键盘 + 判分 + 进度
 │   └── update_wordbank.py 把新导出的 JSON 词库写进 index.html
+├── docs/                 GitHub Pages 发布目录
+│   ├── index.html        memorize/index.html 的副本（由更新工具同步）
+│   └── .nojekyll
 ├── tests/                pytest 用例
 └── data/
     ├── sample_words.json 示例数据（33 个词，含组件，含三个双下加字词形）

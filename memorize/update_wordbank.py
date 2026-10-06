@@ -54,7 +54,15 @@ from tibetan import (  # noqa: E402
     normalize_text,
 )
 
+#: 源文件：改这里，用浏览器打开也是它。
 DEFAULT_HTML = BASE_DIR / "index.html"
+
+#: 发布副本。GitHub Pages 从仓库的 docs/ 目录发布，所以那边要放一份。
+#:
+#: 为什么由脚本同时写两份，而不是手动复制：两份 HTML 各自演化是必然会发生的，
+#: 而且很难发现（改了一份、另一份没动，本地看着好的、线上是旧的）。
+#: 现在一条命令写两处，两边永远一致。不想同步就加 --no-mirror。
+MIRROR_HTML = BASE_DIR.parent / "docs" / "index.html"
 
 
 def _make_output_safe() -> str | None:
@@ -443,10 +451,27 @@ def diff_banks(old: list[dict[str, Any]], new: list[dict[str, Any]]) -> dict[str
 # ---------------------------------------------------------------------------
 # 主流程
 # ---------------------------------------------------------------------------
+def write_html(path: Path, text: str) -> None:
+    """原子写文件：先写临时文件再改名，中途出错不会留下半个文件。"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+
+
 def update(html_path: Path, json_path: Path, *, fix: bool = False,
            check_only: bool = False, generated_at: str | None = None,
-           bank_id: str | None = None) -> dict[str, Any]:
-    """把词库写进 HTML。返回一份报告，供调用方（和测试）使用。"""
+           bank_id: str | None = None,
+           mirror: Path | None = None) -> dict[str, Any]:
+    """把词库写进 HTML。返回一份报告，供调用方（和测试）使用。
+
+    :param mirror: 顺带把同一份内容写到这个路径（GitHub Pages 的发布副本）。
+                   ``None`` 表示只写源文件。
+
+    这个参数**必须显式传**，不用模块级常量做默认值——早先默认写死成
+    :data:`MIRROR_HTML`，结果测试用临时词库一跑，就把真实的发布文件覆盖成了
+    假数据。函数不该有这种「不传参数也会改别的文件」的副作用。
+    """
     if not html_path.exists():
         raise WordbankError(f"找不到 HTML：{html_path}")
 
@@ -487,6 +512,8 @@ def update(html_path: Path, json_path: Path, *, fix: bool = False,
             changes["new_by_id"][i]["tibetan"] for i in changes["changed"]
         ],
         "check_only": check_only,
+        "mirror": mirror,
+        "mirrored": [],
     })
 
     if check_only:
@@ -495,10 +522,15 @@ def update(html_path: Path, json_path: Path, *, fix: bool = False,
     new_block = render_bank(entries, stamp, bank_id or default_bank_id(json_path))
     new_html = BANK_PATTERN.sub(lambda m: new_block, html, count=1)
 
-    # 原子替换：先写临时文件再改名，中途出错不会留下半个文件
-    tmp = html_path.with_suffix(html_path.suffix + ".tmp")
-    tmp.write_text(new_html, encoding="utf-8")
-    os.replace(tmp, html_path)
+    write_html(html_path, new_html)
+
+    # 发布副本：直接拿刚写好的内容覆盖，不再走一遍替换，
+    # 免得两边因为读到的源不同而出现细微差异
+    mirrored: list[str] = []
+    if mirror is not None and mirror.resolve() != html_path.resolve():
+        write_html(mirror, new_html)
+        mirrored.append(str(mirror))
+    report["mirrored"] = mirrored
 
     return report
 
@@ -551,7 +583,12 @@ def format_report(report: dict[str, Any]) -> str:
         lines.append("按标签：" + "、".join(f"{k} {v}" for k, v in sorted(tags.items())))
 
     lines.append("")
-    lines.append("（只检查，未写入）" if report["check_only"] else "✓ 已写入")
+    if report["check_only"]:
+        lines.append("（只检查，未写入）")
+    else:
+        lines.append(f"✓ 已写入 {report['html']}")
+        for path in report.get("mirrored") or []:
+            lines.append(f"✓ 已同步发布副本 {path}")
     return "\n".join(lines)
 
 
@@ -568,6 +605,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         help="组件与藏文对不上时，以组件为准修正藏文（默认是报错退出）")
     parser.add_argument("--bank-id", default=None,
                         help="词库名，网页用它区分不同词库的学习进度（默认取词库文件名）")
+    parser.add_argument("--no-mirror", action="store_true",
+                        help=f"不往 GitHub Pages 的发布副本 {MIRROR_HTML} 同步")
     return parser.parse_args(argv)
 
 
@@ -576,7 +615,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         report = update(args.html, args.wordbank, fix=args.fix,
-                        check_only=args.check, bank_id=args.bank_id)
+                        check_only=args.check, bank_id=args.bank_id,
+                        mirror=None if args.no_mirror else MIRROR_HTML)
     except WordbankError as exc:
         print(f"✗ {exc}", file=sys.stderr)
         return 1

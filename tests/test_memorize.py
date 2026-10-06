@@ -255,6 +255,54 @@ def test_storage_key_is_namespaced_by_bank(js):
            'STORE_KEY = "zwjy-memory:v1:" +' in script
 
 
+def test_pages_mirror_is_up_to_date():
+    """docs/index.html 是 GitHub Pages 的发布副本，必须和源文件一模一样。
+
+    两份 HTML 各自演化是必然会发生的，而且很难发现——本地改了、线上还是旧版。
+    所以更新工具一次写两处（memorize/index.html 是源，docs/ 是发布副本），
+    这条测试保证没人绕过它手动改其中一份。
+    """
+    source = (BASE_DIR / "memorize" / "index.html").read_bytes()
+    mirror = (BASE_DIR / "docs" / "index.html").read_bytes()
+    assert source == mirror, (
+        "两份不一致。改完 memorize/index.html 后要跑一次 "
+        "`python memorize/update_wordbank.py 词库.json` 重新生成发布副本。"
+    )
+
+
+def test_pages_dir_has_nojekyll():
+    """GitHub Pages 默认走 Jekyll，加个 .nojekyll 关掉，省事也快。"""
+    assert (BASE_DIR / "docs" / ".nojekyll").exists()
+
+
+def test_update_writes_the_mirror_it_is_given(tmp_path):
+    """给 mirror 路径就同步一份，内容与源文件一致。"""
+    html = tmp_path / "index.html"
+    html.write_text(empty_bank_html(), encoding="utf-8")
+    mirror = tmp_path / "published" / "index.html"
+
+    report = U.update(html, WORD_BANK_JSON, generated_at="2026-01-01 00:00",
+                      mirror=mirror)
+
+    assert report["mirrored"] == [str(mirror)]
+    assert mirror.read_text(encoding="utf-8") == html.read_text(encoding="utf-8")
+
+
+def test_update_does_not_touch_anything_without_a_mirror(tmp_path):
+    """不传 mirror 就只写源文件 —— 绝不能有「不传参数也改别的文件」的副作用。
+
+    回归测试：早先 mirror 默认写死成模块级的 docs/index.html，结果测试用临时
+    词库跑一遍更新，就把真实的发布文件覆盖成了 1 条假数据。
+    """
+    html = tmp_path / "index.html"
+    html.write_text(empty_bank_html(), encoding="utf-8")
+
+    before = U.MIRROR_HTML.read_bytes()
+    report = U.update(html, WORD_BANK_JSON, generated_at="2026-01-01 00:00")
+    assert report["mirrored"] == []
+    assert U.MIRROR_HTML.read_bytes() == before, "不该碰发布副本"
+
+
 def test_updater_writes_bank_id(tmp_path):
     html = tmp_path / "index.html"
     html.write_text(empty_bank_html(), encoding="utf-8")

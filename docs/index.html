@@ -234,6 +234,15 @@ h3 { font-size: 14px; margin: 16px 0 8px; color: var(--ink-soft); }
   grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
   gap: 6px;
 }
+
+/* 基字按藏语启蒙课本的排法：四个一组、七组半（4×7 + 2 = 30）。
+   顺序在 ROOTS 里本来就是传统顺序，这里只是把列数**钉死在 4** ——
+   用 auto-fill 的话手机上会变成六七个一行，就不是课本上那张表了。
+   上限 88px 是防止宽屏上四个按钮被拉得过宽、失去表格的样子。 */
+.kb-keys.roots {
+  grid-template-columns: repeat(4, minmax(46px, 88px));
+  justify-content: start;
+}
 .key {
   border: 1px solid var(--line);
   background: var(--card);
@@ -437,7 +446,7 @@ h3 { font-size: 14px; margin: 16px 0 8px; color: var(--ink-soft); }
 </main>
 
 <!-- 词库（由 update_wordbank.py 生成，不要手改） -->
-<script type="application/json" id="wordbank" data-bank-id="期中词汇库" data-generated-at="2026-10-06 23:00" data-count="196">
+<script type="application/json" id="wordbank" data-bank-id="期中词汇库" data-generated-at="2026-10-07 00:10" data-count="196">
 [
  {
   "id": "5bf718ed62",
@@ -6410,6 +6419,9 @@ function renderKeyboard() {
   var keys = document.getElementById('kb-keys');
   keys.innerHTML = '';
   var group = GROUPS.filter(function (g) { return g.key === activeGroup; })[0];
+
+  // 基字固定四列，摆成课本上那张「四个一组、七组半」的表（见 CSS 里的 .kb-keys.roots）
+  keys.classList.toggle('roots', group.key === 'root');
 
   if (!group.required) {
     keys.appendChild(makeKey('无', false, function () {

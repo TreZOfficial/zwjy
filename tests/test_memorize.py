@@ -181,6 +181,51 @@ def test_js_composer_returns_empty_without_root(js):
 
 
 # ---------------------------------------------------------------------------
+# 基字键盘的排布（按藏语启蒙课本的「四个一组、七组半」）
+# ---------------------------------------------------------------------------
+#: 课本上那张表的顺序：四个一组，从上往下七组半（4×7 + 2 = 30）
+TRADITIONAL_ROOT_GROUPS = [
+    "ཀཁགང", "ཅཆཇཉ", "ཏཐདན", "པཕབམ",
+    "ཙཚཛཝ", "ཞཟའཡ", "རལཤས", "ཧཨ",
+]
+
+
+def test_root_order_follows_the_teaching_chart(js):
+    """基字顺序必须是课本那张表，不能随手改。
+
+    这个顺序既是传统的字母序，也是「四个一组」分组的前提——
+    顺序一乱，四列排出来就不是课本上的样子了。
+    """
+    roots = js.evaljs("window.__zwjyMemory.ROOTS.join('')")
+    assert len(roots) == 30
+    chunks = [roots[i:i + 4] for i in range(0, 30, 4)]
+    assert chunks == TRADITIONAL_ROOT_GROUPS
+
+
+def test_root_keyboard_is_pinned_to_four_columns():
+    """基字键盘的列数要钉死在 4。
+
+    用 auto-fill 的话，手机上会变成六七个一行，就不是课本上那张表了。
+    """
+    html = H.read_html()
+    css = re.search(r"<style>(.*?)</style>", html, re.DOTALL).group(1)
+    rule = re.search(r"\.kb-keys\.roots\s*\{([^}]*)\}", css)
+    assert rule, "缺少 .kb-keys.roots 规则"
+    assert re.search(r"repeat\(\s*4\s*,", rule.group(1)), rule.group(1)
+
+    # JS 里要在切到基字这一组时挂上这个类
+    script = H.extract_app_script(html)
+    assert "classList.toggle('roots'" in script
+
+
+def test_root_group_is_the_default_tab(js):
+    """打开软键盘先看到基字——用得最多（这份词库里 337 个音节都有基字）。"""
+    html = H.read_html()
+    script = H.extract_app_script(html)
+    assert re.search(r"var activeGroup = 'root'", script)
+
+
+# ---------------------------------------------------------------------------
 # 藏译汉：中文释义的判分
 # ---------------------------------------------------------------------------
 def test_meaning_alternatives_strips_part_of_speech():

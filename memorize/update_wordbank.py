@@ -452,10 +452,16 @@ def diff_banks(old: list[dict[str, Any]], new: list[dict[str, Any]]) -> dict[str
 # 主流程
 # ---------------------------------------------------------------------------
 def write_html(path: Path, text: str) -> None:
-    """原子写文件：先写临时文件再改名，中途出错不会留下半个文件。"""
+    """原子写文件：先写临时文件再改名，中途出错不会留下半个文件。
+
+    **行尾固定写成 LF**（``newline="\\n"``）。不写死的话，Windows 上
+    ``Path.write_text`` 会按 ``os.linesep`` 转成 CRLF、Linux 上留 LF——
+    同一份词库在不同平台产出的字节就不一样，源文件与发布副本的逐字节
+    比对也会随平台翻车。让内容只由输入决定，不由跑在哪个系统决定。
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
+    tmp.write_text(text, encoding="utf-8", newline="\n")
     os.replace(tmp, path)
 
 

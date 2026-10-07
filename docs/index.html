@@ -241,7 +241,8 @@ h3 { font-size: 14px; margin: 16px 0 8px; color: var(--ink-soft); }
    上限 88px 是防止宽屏上四个按钮被拉得过宽、失去表格的样子。 */
 .kb-keys.roots {
   grid-template-columns: repeat(4, minmax(46px, 88px));
-  justify-content: start;
+  /* 居中：列宽有上限，宽屏上四列排不满一行，靠左会显得整块偏在一角 */
+  justify-content: center;
 }
 .key {
   border: 1px solid var(--line);
@@ -446,7 +447,7 @@ h3 { font-size: 14px; margin: 16px 0 8px; color: var(--ink-soft); }
 </main>
 
 <!-- 词库（由 update_wordbank.py 生成，不要手改） -->
-<script type="application/json" id="wordbank" data-bank-id="期中词汇库" data-generated-at="2026-10-07 00:10" data-count="196">
+<script type="application/json" id="wordbank" data-bank-id="期中词汇库" data-generated-at="2026-10-07 00:30" data-count="196">
 [
  {
   "id": "5bf718ed62",

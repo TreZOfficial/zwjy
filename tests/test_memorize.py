@@ -212,6 +212,8 @@ def test_root_keyboard_is_pinned_to_four_columns():
     rule = re.search(r"\.kb-keys\.roots\s*\{([^}]*)\}", css)
     assert rule, "缺少 .kb-keys.roots 规则"
     assert re.search(r"repeat\(\s*4\s*,", rule.group(1)), rule.group(1)
+    # 列宽有上限，宽屏上排不满一行，要居中而不是靠左
+    assert re.search(r"justify-content:\s*center", rule.group(1)), rule.group(1)
 
     # JS 里要在切到基字这一组时挂上这个类
     script = H.extract_app_script(html)

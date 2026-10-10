@@ -506,7 +506,7 @@ python -m pytest
   `rPr` 子元素顺序、三种释义组合、行高与页脚域、文件名
 - `tests/test_app.py` —— 全部 HTTP 路由（含真实下载 .docx 后解压检查 XML）
 - `tests/test_sample_data.py` —— 逐条验证示例数据的组件能合成出它自己的藏文
-- `tests/test_memorize.py` —— **用 dukpy 把记忆工具页面上的 JS 跑起来**，对全部 196 条
+- `tests/test_memorize.py` —— **用 dukpy 把记忆工具页面上的 JS 跑起来**，对全部 261 条
   逐条比对 JS 合成器与 `tibetan.py` 的输出；另含更新工具（归一化、id 稳定性、
   坏数据拒绝、原子写入、增删改报告）与「单文件不含外部引用」的检查
 
@@ -540,7 +540,8 @@ zwjy/
 ├── tests/                pytest 用例
 └── data/
     ├── sample_words.json 示例数据（33 个词，含组件，含三个双下加字词形）
-    ├── 期中词汇库.json    实际在用的词库（196 个词，5 课）
+    ├── 词库1009.json      当前在用的词库（261 个词，9 课）
+    ├── 期中词汇库.json    上一版词库（196 个词，5 课），留作备份
     └── words.db          SQLite 数据库（首次启动自动生成）
 ```
 

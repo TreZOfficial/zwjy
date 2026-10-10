@@ -5,7 +5,7 @@ update_wordbank.py —— 把新的词库写进 index.html
 
 用法::
 
-    python update_wordbank.py 期中词汇库.json          # 一键更新
+    python update_wordbank.py 词库1009.json            # 一键更新
     python update_wordbank.py 新词库.json --check      # 只检查，不动文件
     python update_wordbank.py 新词库.json --fix        # 组件与藏文对不上时，以组件为准修正
     python update_wordbank.py 新词库.json -o 别的.html  # 写到别的文件

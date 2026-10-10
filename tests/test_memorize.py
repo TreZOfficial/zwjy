@@ -44,7 +44,13 @@ dukpy = pytest.importorskip("dukpy", reason="跑 JS 需要 dukpy（pip install d
 
 import js_harness as H  # noqa: E402
 
-WORD_BANK_JSON = BASE_DIR / "data" / "期中词汇库.json"
+WORD_BANK_JSON = BASE_DIR / "data" / "词库1009.json"
+
+# 真实词库的条数不写死在这里：换词库（期中 -> 期末）时不用回来改测试。
+# 真正要钉死的是「页面里嵌的 == 这份 JSON」，条数只是顺带核对一下。
+# 万一 JSON 被改坏了、words 和 count 对不上，下面 test_load_real_wordbank 会报。
+REAL_BANK = json.loads(WORD_BANK_JSON.read_text(encoding="utf-8"))
+REAL_COUNT = len(REAL_BANK["words"])
 
 
 def blank(**kwargs) -> dict:
@@ -221,7 +227,11 @@ def test_root_keyboard_is_pinned_to_four_columns():
 
 
 def test_root_group_is_the_default_tab(js):
-    """打开软键盘先看到基字——用得最多（这份词库里 337 个音节都有基字）。"""
+    """打开软键盘先看到基字——每个音节都得有基字，所以它用得最多。
+
+    这里不写具体条数：词库一换数字就过期了，真正成立的是「每个音节都有基字」，
+    那条由 test_load_real_wordbank 逐音节盯着。
+    """
     html = H.read_html()
     script = H.extract_app_script(html)
     assert re.search(r"var activeGroup = 'root'", script)
@@ -356,7 +366,8 @@ def test_updater_writes_bank_id(tmp_path):
     U.update(html, WORD_BANK_JSON, generated_at="2026-01-01 00:00")
 
     text = html.read_text(encoding="utf-8")
-    assert 'data-bank-id="期中词汇库"' in text
+    # 不给 --bank-id 时，用文件名（去掉扩展名）当词库名
+    assert f'data-bank-id="{WORD_BANK_JSON.stem}"' in text
 
     # 换一个 --bank-id 也能生效
     U.update(html, WORD_BANK_JSON, generated_at="2026-01-01 00:00", bank_id="期末")
@@ -368,10 +379,18 @@ def test_updater_writes_bank_id(tmp_path):
 # ---------------------------------------------------------------------------
 def test_load_real_wordbank():
     entries = U.load_wordbank(WORD_BANK_JSON)
-    assert len(entries) == 196
+    assert len(entries) == REAL_COUNT
+    # 导出文件自己记的 count 也得对得上——防止导出了一半还以为完整
+    assert REAL_BANK["count"] == REAL_COUNT
     for entry in entries:
         assert entry["tibetan"] and entry["meaning"]
         assert entry["id"] and entry["components"]
+
+    # 基字软键盘之所以默认展开，是因为「没有基字就不成音节」。
+    # 这条要是破了，说明词库里有录坏的音节，先于键盘布局出问题。
+    for word in REAL_BANK["words"]:
+        for syl in word["components"]["syllables"]:
+            assert syl.get("root"), f"{word['tibetan']} 有音节没基字"
 
 
 def test_ids_are_stable_and_meaning_edits_do_not_reset_progress():
@@ -558,7 +577,7 @@ def test_update_is_idempotent(tmp_path):
     twice = html.read_text(encoding="utf-8")
 
     assert once == twice
-    assert len(U.read_embedded(once)) == 196
+    assert len(U.read_embedded(once)) == REAL_COUNT
 
 
 def test_update_reports_changes(tmp_path):
@@ -566,7 +585,7 @@ def test_update_reports_changes(tmp_path):
     html.write_text(empty_bank_html(), encoding="utf-8")
 
     first = U.update(html, WORD_BANK_JSON, generated_at="2026-01-01 00:00")
-    assert first["old_count"] == 0 and first["added"] == 196
+    assert first["old_count"] == 0 and first["added"] == REAL_COUNT
 
     second = U.update(html, WORD_BANK_JSON, generated_at="2026-01-01 00:00")
     assert second["added"] == 0 and second["removed"] == 0 and second["changed"] == 0
@@ -579,7 +598,7 @@ def test_update_reports_changes(tmp_path):
 
     third = U.update(html, smaller, generated_at="2026-01-01 00:00")
     assert third["removed"] == 1 and third["added"] == 0
-    assert len(U.read_embedded(html.read_text(encoding="utf-8"))) == 195
+    assert len(U.read_embedded(html.read_text(encoding="utf-8"))) == REAL_COUNT - 1
 
 
 def test_update_leaves_html_alone_when_wordbank_is_bad(tmp_path):

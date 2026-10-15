@@ -99,6 +99,40 @@ app = FastAPI(
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
+
+def static_version(filename: str) -> str:
+    """静态资源的版本号，取文件修改时间。
+
+    模板里拼在 URL 后面：``/static/app.js?v=1760000000``。
+    改了文件 URL 就变，浏览器必定重新下载——光靠响应头救不回**已经**被
+    启发式缓存住的那份旧副本，那需要一个不同的 URL。
+    """
+    try:
+        return str(int((BASE_DIR / "static" / filename).stat().st_mtime))
+    except OSError:
+        return "0"
+
+
+templates.env.globals["static_version"] = static_version
+
+
+@app.middleware("http")
+async def revalidate_static_assets(request: Request, call_next):
+    """静态资源每次都让浏览器回来问一句。
+
+    Starlette 的 StaticFiles 只发 ETag / Last-Modified、不发 Cache-Control，
+    浏览器于是按「距上次修改时间的一定比例」自己做启发式缓存：改了 CSS/JS，
+    用户不手动强刷就看不到。这个坑已经踩过一次——下拉框「无」的字体修复
+    在本地截图里明明是好的，浏览器里却还是旧的。
+
+    这里是 no-cache 而不是 no-store：**允许**缓存，但每次都要回来验证。
+    文件没变时服务端只回 304，几乎不花时间；变了立刻拿到新的。
+    """
+    response = await call_next(request)
+    if request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
 # 建表是幂等的，这里在导入时就做一次，避免用非标准方式拉起应用时
 # （例如直接用 TestClient、或某些 ASGI 宿主）出现「no such table」的困惑。
 models.init_db()

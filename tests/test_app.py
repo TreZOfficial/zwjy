@@ -904,3 +904,24 @@ def test_backup_import_failure_keeps_library_intact(client, monkeypatch):
 def test_static_assets_are_served(client):
     assert client.get("/static/style.css").status_code == 200
     assert client.get("/static/app.js").status_code == 200
+
+
+def test_static_assets_are_revalidated(client):
+    """静态资源要带 Cache-Control，否则浏览器会启发式缓存住旧副本。
+
+    Starlette 默认只发 ETag / Last-Modified。改了 CSS 之后用户不手动强刷
+    就看不到新样式——「无」的字体修复就这么白费过一轮。
+    """
+    for name in ("style.css", "app.js"):
+        response = client.get(f"/static/{name}")
+        assert response.headers.get("cache-control") == "no-cache", name
+
+
+def test_static_urls_carry_a_version(client):
+    """页面里的静态资源 URL 要带版本号，换了文件就换 URL。
+
+    光靠响应头救不回**已经**被缓存住的那份旧副本，只能靠不同的 URL 击穿。
+    """
+    page = client.get("/words/new").text
+    assert re.search(r'href="/static/style\.css\?v=\d+"', page)
+    assert re.search(r'src="/static/app\.js\?v=\d+"', page)

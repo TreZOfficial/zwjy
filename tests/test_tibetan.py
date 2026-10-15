@@ -6,24 +6,35 @@
 
 from __future__ import annotations
 
+import re
 import unicodedata
+from dataclasses import replace
+from pathlib import Path
+
+import pytest
 
 from tibetan import (
     MAX_SUBJOINED,
     PREFIXES,
+    PREFIX_ROOT_RULES,
     ROOTS,
     SUBJOINED,
     SUBJOINED_BEFORE_WAZUR,
     SUBJOINED_MAP,
+    SUBJOINED_ROOT_RULES,
     SUBJOINED_TAIL_MAP,
+    SUFFIX2_SUFFIX_RULES,
     SUFFIX2S,
     SUFFIXES,
+    SUPER_ROOT_RULES,
     SUPERSCRIPTS,
     TSHEG,
     VOWELS,
     WAZUR_LETTER,
+    WAZUR_SPECIAL_STACKS,
     Syllable,
     WordComponents,
+    allowed_components,
     compose_syllable,
     compose_word,
     normalize_subjoined,
@@ -31,6 +42,12 @@ from tibetan import (
     validate_syllable,
     validate_word,
 )
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+#: 规则文档。只在本地保留（已加进 .gitignore），不进仓库；
+#: 所以下面依赖它的测试要能在文件缺失时跳过。
+RULE_DOC = BASE_DIR / "藏文规则.md"
 
 
 # ---------------------------------------------------------------------------
@@ -95,8 +112,12 @@ def test_base_is_subjoined_only_when_superscript_present():
 
 
 def test_subjoined_tail_mapping():
-    """下加字字段要换算成下加形式。"""
-    expected = {"ཡ": "ྱ", "ར": "ྲ", "ལ": "ླ", "ཝ": "ྭ", "ཧ": "ྷ"}
+    """下加字字段要换算成下加形式。
+
+    只有 4 个：规则文档不认下加字 ཧ（ྷ），它只出现在 གྷ དྷ བྷ ཛྷ
+    这几个梵文转写里，现有词库一次都没用到。
+    """
+    expected = {"ཡ": "ྱ", "ར": "ྲ", "ལ": "ླ", "ཝ": "ྭ"}
     assert SUBJOINED_TAIL_MAP == expected
     for normal, subjoined in expected.items():
         assert compose_syllable(Syllable(root="ཀ", subjoined=normal)) == "ཀ" + subjoined
@@ -243,10 +264,15 @@ def test_second_layer_must_be_wazur():
 
 
 def test_wazur_on_an_unattested_first_layer_warns():
-    """ླ / ྷ 之上再叠 wa-zur 没有实际用例。"""
-    for letter in ("ལ", "ཧ"):
-        issues = validate_syllable(Syllable(root="ག", subjoined=[letter, "ཝ"]))
-        assert any("wa-zur" in i.message for i in issues), letter
+    """ླ 之上再叠 wa-zur 没有实际用例（有据可查的只有 ྲ、ྱ 两种）。"""
+    issues = validate_syllable(Syllable(root="ག", subjoined=["ལ", "ཝ"]))
+    assert any("wa-zur" in i.message for i in issues)
+
+
+def test_subjoined_ha_is_no_longer_a_component():
+    """下加字 ཧ（ྷ）已按规则文档移除，现在应报「不在组件表中」的硬错误。"""
+    issues = validate_syllable(Syllable(root="ག", subjoined=["ཧ"]))
+    assert any(i.level == "error" and "ཧ" in i.message for i in issues)
 
 
 def test_subjoined_order_matters_for_encoding():
@@ -591,13 +617,18 @@ def test_warnings_never_block_composition():
 # 组件表本身
 # ---------------------------------------------------------------------------
 def test_component_tables_are_as_specified():
+    """七张组件表的内容。
+
+    下加字与再后加字按「藏文规则.md」收窄了：
+    下加字去掉 ཧ（ྷ），再后加字只留 ས。
+    """
     assert PREFIXES == ("ག", "ད", "བ", "མ", "འ")
     assert SUPERSCRIPTS == ("ར", "ལ", "ས")
     assert len(ROOTS) == 30
-    assert SUBJOINED == ("ཡ", "ར", "ལ", "ཝ", "ཧ")
+    assert SUBJOINED == ("ཡ", "ར", "ལ", "ཝ")
     assert VOWELS == ("ི", "ུ", "ེ", "ོ")
     assert SUFFIXES == ("ག", "ང", "ད", "ན", "བ", "མ", "འ", "ར", "ལ", "ས")
-    assert SUFFIX2S == ("ས", "ད")
+    assert SUFFIX2S == ("ས",)
 
 
 def test_all_component_options_include_none_except_root():
@@ -688,3 +719,166 @@ def test_preview_reports_issues():
     result = preview(payload)
     assert result["tibetan"] == ""
     assert [i["level"] for i in result["issues"]] == ["error"]
+
+
+def test_preview_carries_allowed_components():
+    """录入页靠 preview 顺带拿到「还能选什么」，省一次往返。"""
+    payload = {"auto_join": True, "syllables": [{"root": "ཀ"}]}
+    result = preview(payload)
+    assert "allowed" in result
+    assert len(result["allowed"]) == 1
+    assert "ལ" in result["allowed"][0]["subjoined"]   # ཀླ 是合法下加字
+    assert result["allowed"][0]["superscript"] == ["ར", "ལ", "ས"]
+
+
+# ---------------------------------------------------------------------------
+# 下拉框过滤：allowed_components
+# ---------------------------------------------------------------------------
+def test_allowed_components_is_unfiltered_before_a_root_is_chosen():
+    """还没选基字时，除了再后加字，其余字段一律不做限制。"""
+    allowed = allowed_components(Syllable())
+    assert allowed["prefix"] == list(PREFIXES)
+    assert allowed["superscript"] == list(SUPERSCRIPTS)
+    assert allowed["root"] == list(ROOTS)
+    assert allowed["subjoined"] == list(SUBJOINED)
+    assert allowed["suffix"] == list(SUFFIXES)
+    # 再后加字要有后加字才能加，这里还没有
+    assert allowed["suffix2"] == []
+
+
+def test_allowed_roots_follow_the_document_tables():
+    """三个上加字各自能带哪些基字，与文档一一对应。
+
+    这条同时钉住了「过滤用严格表」这个设计：文档里没有的基字不出现，
+    即使用户换个拆法也能写出同一个字。
+    """
+    assert set(allowed_components(Syllable(superscript="ར"))["root"]) == \
+        set(SUPER_ROOT_RULES["ར"])
+    assert set(allowed_components(Syllable(superscript="ལ"))["root"]) == \
+        set(SUPER_ROOT_RULES["ལ"])
+    assert set(allowed_components(Syllable(superscript="ས"))["root"]) == \
+        set(SUPER_ROOT_RULES["ས"])
+    assert set(allowed_components(Syllable(prefix="བ"))["root"]) == \
+        set(PREFIX_ROOT_RULES["བ"])
+
+    # སླ 不靠「上加字 ས + 基字 ལ」录入——文档的 ས 表里没有 ལ。
+    # 界面会引导用户改走「基字 ས + 下加字 ལ」，所以那条路必须是通的。
+    assert "ལ" not in allowed_components(Syllable(superscript="ས"))["root"]
+    assert "ལ" in allowed_components(Syllable(root="ས"))["subjoined"]
+
+
+def test_allowed_components_wazur_special_case():
+    """文档给 ཝ 开的特例：རྩ 下面可以加 ཝ（རྩྭ 草）。"""
+    allowed = allowed_components(Syllable(superscript="ར", root="ཙ"))
+    assert allowed["subjoined"] == ["ཝ"]
+
+    # 没有上加字时，基字 ཙ 底下不能单独加 ཝ
+    assert allowed_components(Syllable(root="ཙ"))["subjoined"] == []
+
+
+def test_allowed_components_subjoined_tail_is_wazur_only():
+    """第二层下加字按结构只可能是 ་ཝ。"""
+    assert allowed_components(Syllable(root="ག", subjoined=["ར"]))["subjoined_tail"] == ["ཝ"]
+    # 第一层不是 ཡ / ར 时，第二层没有合法选项
+    assert allowed_components(Syllable(root="ག", subjoined=["ལ"]))["subjoined_tail"] == []
+
+
+def test_allowed_components_suffix2_needs_a_suffix():
+    assert allowed_components(Syllable(root="ཀ", suffix="ག"))["suffix2"] == ["ས"]
+    assert allowed_components(Syllable(root="ཀ", suffix="ད"))["suffix2"] == []
+    assert allowed_components(Syllable(root="ཀ"))["suffix2"] == []
+
+
+def test_allowed_components_gives_roots_without_affix_nothing():
+    """འ / ཨ 是合法基字，但不接受任何前后缀。"""
+    allowed = allowed_components(Syllable(root="ཨ"))
+    assert allowed["prefix"] == [] and allowed["superscript"] == []
+    assert allowed["subjoined"] == []
+    assert "ཨ" in allowed_components(Syllable())["root"]   # 本身仍在基字列表里
+
+
+def test_every_allowed_option_is_warning_free():
+    """核心不变式：过滤列出来的值，填进去都不该产生警告。
+
+    过滤（allowed_components）与校验（validate_syllable）是两套调用路径，
+    这条测试把它们钉在一起——界面上选得出来的，服务端不能回头说它不常见。
+    """
+    bases = [
+        Syllable(root="ཀ"),
+        Syllable(root="ཤ"),
+        Syllable(root="ཨ"),
+        Syllable(superscript="ར"),
+        Syllable(superscript="ས"),
+        Syllable(prefix="བ"),
+        Syllable(root="ཙ", superscript="ར"),
+        Syllable(root="ས"),
+        Syllable(root="ལ"),
+        Syllable(root="ཀ", subjoined=["ར"]),
+        Syllable(root="ཀ", suffix="ག"),
+        Syllable(root="ཀ", suffix="ད"),
+    ]
+    fields = ("prefix", "superscript", "root", "vowel", "suffix", "suffix2")
+
+    for base in bases:
+        allowed = allowed_components(base)
+        for field in fields:
+            if not base.root and field != "root":
+                continue          # 没有基字时其余字段无从判定，跳过
+            for value in allowed[field]:
+                probe = replace(base, **{field: value})
+                assert validate_syllable(probe) == [], f"{base} + {field}={value}"
+        if base.root:            # 没有基字时单加下加字本来就报错，不是这条要测的
+            for value in allowed["subjoined"]:
+                if base.subjoined:
+                    probe = replace(base, subjoined=[value, *base.subjoined[1:]])
+                else:
+                    probe = replace(base, subjoined=[value])
+                assert validate_syllable(probe) == [], f"{base} + 下加字={value}"
+        # 第二层只在已经有第一层时才有意义
+        if base.subjoined:
+            for value in allowed["subjoined_tail"]:
+                probe = replace(base, subjoined=[*base.subjoined, value])
+                assert validate_syllable(probe) == [], f"{base} + 第二层={value}"
+
+
+# ---------------------------------------------------------------------------
+# 与「藏文规则.md」的一致性
+# ---------------------------------------------------------------------------
+def _doc_lists(section: str) -> dict[str, set[str]]:
+    """从规则文档里抠出某一节的「X：可加于基字 …」清单。"""
+    text = RULE_DOC.read_text(encoding="utf-8")
+    body = text.split(f"## {section}", 1)[1].split("\n## ", 1)[0]
+    lists: dict[str, set[str]] = {}
+    for line in body.splitlines():
+        match = re.match(r"-\s*\*\*(.)\*\*：.*?可加于基字(.*?)(?:（|$)", line)
+        if not match:
+            continue
+        # 只留藏文字母，把顿号、空格和行尾的说明文字滤掉
+        letters = {c for c in match.group(2) if "ཀ" <= c <= "ཬ"}
+        lists[match.group(1)] = letters
+    return lists
+
+
+@pytest.mark.skipif(not RULE_DOC.exists(), reason="藏文规则.md 只在本地保留，不进仓库")
+def test_rule_tables_match_the_spec_document():
+    """代码里的规则表必须和「藏文规则.md」逐项一致。
+
+    文档是规格，改文档不改代码这条就会红——避免两边各说各话。
+    """
+    assert set(_doc_lists("上加字")) == set(SUPERSCRIPTS)
+    assert set(_doc_lists("下加字")) == set(SUBJOINED)
+    assert set(_doc_lists("前加字")) == set(PREFIXES)
+
+    for letter, roots in _doc_lists("上加字").items():
+        assert roots == set(SUPER_ROOT_RULES[letter]), f"上加字 {letter}"
+    for letter, roots in _doc_lists("下加字").items():
+        assert roots == set(SUBJOINED_ROOT_RULES[letter]), f"下加字 {letter}"
+    for letter, roots in _doc_lists("前加字").items():
+        assert roots == set(PREFIX_ROOT_RULES[letter]), f"前加字 {letter}"
+
+    # 文档里的 ཝ 特例，要和代码里的四个字串对上
+    assert WAZUR_SPECIAL_STACKS == frozenset({"རྩ", "གྲ", "དྲ", "ཕྱ"})
+
+    # 再后加字：文档说只认 ས，它可加于 ག ང བ མ
+    assert SUFFIX2S == ("ས",)
+    assert set(SUFFIX2_SUFFIX_RULES["ས"]) == {"ག", "ང", "བ", "མ"}

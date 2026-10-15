@@ -7,13 +7,16 @@ import io
 import json
 import re
 import zipfile
+from pathlib import Path
 from urllib.parse import unquote
 
 import pytest
 from docx import Document
 
 import models
-from tibetan import Syllable, WordComponents
+from tibetan import SUPER_ROOT_RULES, Syllable, WordComponents
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
@@ -424,6 +427,35 @@ def test_api_preview(client):
     assert body["tibetan"] == "བསྒྲུབས།"
     assert body["syllable_strings"] == ["བསྒྲུབས"]
     assert body["issues"] == []
+
+
+def test_api_preview_returns_allowed_components(client):
+    """录入页靠这个字段把下拉框里不该选的选项置灰（见 tibetan.allowed_components）。"""
+    response = client.post("/api/preview", json={
+        "auto_join": True,
+        "syllables": [{"superscript": "ར"}, {"root": "ཀ", "suffix": "ག"}],
+    })
+    assert response.status_code == 200
+    allowed = response.json()["allowed"]
+    assert len(allowed) == 2                      # 每个音节一份
+    # 返回的顺序是 ROOTS 的传统字序，规则表是集合，所以按集合比
+    assert set(allowed[0]["root"]) == set(SUPER_ROOT_RULES["ར"])
+    assert allowed[1]["suffix2"] == ["ས"]
+    # 「无」选项不在名单里，由前端保持不变
+    assert "" not in allowed[0]["root"]
+
+
+def test_edit_page_filters_dropdowns(client):
+    """页面上要有过滤逻辑的落点：容器 + 组件下拉框。"""
+    response = client.get("/words/new")
+    assert response.status_code == 200
+    assert 'data-component="root"' in response.text
+
+    script = (BASE_DIR / "static" / "app.js").read_text(encoding="utf-8")
+    assert "applyAllowed" in script
+    assert "data.allowed" in script
+    # 用置灰而不是删除选项
+    assert "option.disabled" in script
 
 
 def test_api_preview_reports_errors_and_warnings(client):

@@ -447,7 +447,7 @@ h3 { font-size: 14px; margin: 16px 0 8px; color: var(--ink-soft); }
 </main>
 
 <!-- 词库（由 update_wordbank.py 生成，不要手改） -->
-<script type="application/json" id="wordbank" data-bank-id="词库1016" data-generated-at="2026-10-16 00:51" data-count="330">
+<script type="application/json" id="wordbank" data-bank-id="词库1016" data-generated-at="2026-10-16 02:06" data-count="330">
 [
  {
   "id": "5bf718ed62",
@@ -8597,9 +8597,11 @@ h3 { font-size: 14px; margin: 16px 0 8px; color: var(--ink-soft); }
   "components": [
    {
     "prefix": "",
-    "superscript": "ས",
-    "root": "ལ",
-    "subjoined": [],
+    "superscript": "",
+    "root": "ས",
+    "subjoined": [
+     "ལ"
+    ],
     "vowel": "ོ",
     "suffix": "བ",
     "suffix2": ""
@@ -8629,9 +8631,11 @@ h3 { font-size: 14px; margin: 16px 0 8px; color: var(--ink-soft); }
   "components": [
    {
     "prefix": "",
-    "superscript": "ས",
-    "root": "ལ",
-    "subjoined": [],
+    "superscript": "",
+    "root": "ས",
+    "subjoined": [
+     "ལ"
+    ],
     "vowel": "ོ",
     "suffix": "བ",
     "suffix2": ""
@@ -8868,9 +8872,11 @@ h3 { font-size: 14px; margin: 16px 0 8px; color: var(--ink-soft); }
    },
    {
     "prefix": "",
-    "superscript": "ས",
-    "root": "ལ",
-    "subjoined": [],
+    "superscript": "",
+    "root": "ས",
+    "subjoined": [
+     "ལ"
+    ],
     "vowel": "ོ",
     "suffix": "བ",
     "suffix2": ""
@@ -10020,11 +10026,11 @@ h3 { font-size: 14px; margin: 16px 0 8px; color: var(--ink-soft); }
 // 基字（30 个常用辅音）
 var ROOTS = ('ཀཁགངཅཆཇཉཏཐདནཔཕབམཙཚཛཝཞཟའཡརལཤསཧཨ').split('');
 var SUPERSCRIPTS = 'རལས'.split('');
-var SUBJOINED = 'ཡརལཝཧ'.split('');
+var SUBJOINED = 'ཡརལཝ'.split('');
 var VOWELS = 'ིེོུ'.split('');
 var PREFIXES = 'གདབམའ'.split('');
 var SUFFIXES = ('གངདནབམའརལས').split('');
-var SUFFIX2S = 'སད'.split('');
+var SUFFIX2S = 'ས'.split('');
 
 var TSHEG = '་';          // U+0F0B
 var TSHEG_BSTAR = '༌';    // U+0F0C，看着一样但码点不同
@@ -10037,7 +10043,7 @@ function toSubjoined(c) {
 }
 var SUBJOINED_MAP = {};   // 基字 -> 下加形式（有上加字时用）
 ROOTS.forEach(function (c) { SUBJOINED_MAP[c] = toSubjoined(c); });
-var SUBJOINED_TAIL = {};  // 下加字下拉框的 5 个选项 -> 下加形式
+var SUBJOINED_TAIL = {};  // 下加字下拉框的 4 个选项 -> 下加形式
 SUBJOINED.forEach(function (c) { SUBJOINED_TAIL[c] = toSubjoined(c); });
 
 /** 把用户粘贴的藏文归一：tsheg bstar 换成标准 tsheg，并去掉首尾空白 */

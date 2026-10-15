@@ -193,6 +193,7 @@
       previewMeta.textContent = typed ? '直接输入的藏文（未使用音节组件）' : '';
       renderIssues([], !typed);
       updateCardPreviews(state.syllables.map(() => ''));
+      applyAllowed([]);   // 没有内容时解除所有置灰，别留下上一轮的痕迹
       return;
     }
 
@@ -216,6 +217,7 @@
 
       renderIssues(lastIssues, false);
       updateCardPreviews(data.syllable_strings || []);
+      applyAllowed(data.allowed || []);
     } catch (error) {
       previewMeta.textContent = '预览失败：' + error.message;
     }
@@ -225,6 +227,48 @@
     container.querySelectorAll('.syllable-card').forEach((card, index) => {
       const box = card.querySelector('.syllable-preview');
       if (box) box.textContent = strings[index] || '';
+    });
+  }
+
+  // -------------------------------------------------- 按规则过滤下拉框
+  // 服务端 /api/preview 会连「每个字段还能选什么」一起返回（tibetan.allowed_components），
+  // 这里把它应用到下拉框上：不在名单里的选项置灰。
+  //
+  // 用 disabled 而不是把 option 删掉，有三个原因：
+  //   1. 选项位置保持不动，不会因为列表变短而跳来跳去；
+  //   2. 用户看得见「这个确实配不了」，本身就是规则提示；
+  //   3. 删掉再重建容易把当前选中项弄丢。
+  // 另外「无」和「当前已选中项」永远不置灰——否则界面看起来像坏了。
+  function disableUnlisted(select, values) {
+    select.querySelectorAll('option').forEach(function (option) {
+      if (option.value === '' || option.selected) {
+        option.disabled = false;
+        return;
+      }
+      option.disabled = values !== null && values.indexOf(option.value) === -1;
+    });
+  }
+
+  function applyAllowed(allowedList) {
+    container.querySelectorAll('.syllable-card').forEach(function (card, index) {
+      const allowed = allowedList[index];
+      function valuesFor(key) {
+        return (allowed && allowed[key]) || null;
+      }
+
+      // 下加字是叠层：第一层用 subjoined，第二层及以后用 subjoined_tail
+      card.querySelectorAll('.subjoined-rows').forEach(function (rows) {
+        let rowIndex = 0;
+        rows.querySelectorAll('select[data-component="subjoined"]').forEach(function (select) {
+          disableUnlisted(select, valuesFor(rowIndex === 0 ? 'subjoined' : 'subjoined_tail'));
+          rowIndex += 1;
+        });
+      });
+
+      card.querySelectorAll('select[data-component]').forEach(function (select) {
+        if (select.dataset.component === 'subjoined') return;   // 上面已处理
+        disableUnlisted(select, valuesFor(select.dataset.component));
+      });
     });
   }
 

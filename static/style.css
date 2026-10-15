@@ -156,6 +156,16 @@ select.tibetan-select {
   padding: 3px 8px;
 }
 
+/* 选中「无」时换回界面字体、缩回正常字号。
+   藏文字体的字身是按三四层高的辅音堆叠设计的，字面上下的留白跟汉字对不上：
+   把「无」放进 24px 的藏文字体，上缘会被下拉框裁掉。
+   「无」是界面文字、不是藏文，本来也不该用藏文字体渲染。
+   （class 由 static/app.js 的 syncSelectFont 挂上） */
+select.tibetan-select.is-none {
+  font-family: inherit;
+  font-size: 14px;
+}
+
 /* 直接输入藏文的文本框（用于没有音节组件的词条） */
 input.tibetan-input {
   font-family: var(--tibetan-font);

@@ -193,11 +193,12 @@ def test_tibetan_run_sets_szcs():
         assert szCs.get(qn("w:val")) == "32"
 
 
-def test_tibetan_runs_are_bold():
-    """藏文一律加粗——不加粗的话打印出来发虚。
+def test_tibetan_runs_are_not_bold():
+    """藏文不加粗。
 
-    藏文字体大多没有真正的粗体字重，Word 会合成加粗，视觉上是「更实」。
-    注意复杂文本靠的是 w:bCs，只设 w:b 对藏文没用。
+    早先为了打印「更实」加过 w:b / w:bCs，后来按要求去掉了：
+    藏文字体大多没有真正的粗体字重，Word 只能合成加粗，
+    笔画堆叠处会糊在一起。字号够大就够了。
     """
     for layout in (LAYOUT_TABLE, LAYOUT_COLUMNS):
         document = build_document(make_rows(2), ExportOptions(layout=layout))
@@ -205,8 +206,8 @@ def test_tibetan_runs_are_bold():
         assert runs, layout
         for run in runs:
             rPr = run._element.rPr
-            assert rPr.find(qn("w:b")) is not None, layout
-            assert rPr.find(qn("w:bCs")) is not None, layout
+            assert rPr.find(qn("w:b")) is None, layout
+            assert rPr.find(qn("w:bCs")) is None, layout
 
 
 def test_tibetan_default_size_is_large_enough_to_print():

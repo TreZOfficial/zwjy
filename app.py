@@ -223,9 +223,17 @@ async def create_word(request: Request):
     word, issues = await word_from_request(request)
     word_id = models.create_word(word)
 
-    if issues:
-        # 有组合提示时，把用户带回编辑页（那里会展示完整提示），而不是直接回列表
+    # 只有「无法合成」这类硬错误才把用户带回编辑页。组合提示（warning）
+    # 不拦保存，也就没道理不让人回列表——前端提交前已经弹过一次确认，
+    # 用户是知情之后才点的「确定」。
+    if any(issue.level == "error" for issue in issues):
         return redirect(f"/words/{word_id}/edit", msg=f"已保存「{word.tibetan}」", level="warn")
+    if issues:
+        return redirect(
+            "/",
+            msg=f"已新增「{word.tibetan}」（有组合提示，可在编辑页查看）",
+            level="warn",
+        )
     return redirect("/", msg=f"已新增「{word.tibetan}」")
 
 
@@ -279,8 +287,15 @@ async def update_word(request: Request, word_id: int):
     word, issues = await word_from_request(request)
     models.update_word(word_id, word)
 
-    if issues:
+    # 同 create_word：只有硬错误才留在编辑页
+    if any(issue.level == "error" for issue in issues):
         return redirect(f"/words/{word_id}/edit", msg=f"已保存「{word.tibetan}」", level="warn")
+    if issues:
+        return redirect(
+            "/",
+            msg=f"已更新「{word.tibetan}」（有组合提示，可在编辑页查看）",
+            level="warn",
+        )
     return redirect("/", msg=f"已更新「{word.tibetan}」")
 
 

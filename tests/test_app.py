@@ -286,17 +286,55 @@ def test_create_rejects_empty_components(client):
 
 
 def test_create_warns_but_still_saves(client):
-    """不常见的组合只给提示，不阻止保存。"""
+    """不常见的组合只给提示，不阻止保存。
+
+    保存后照样回词汇列表——前端提交前已经弹过确认，用户是知情才点的。
+    提示内容通过 flash 带过去，想看详细的再从列表点进编辑页。
+    """
     response = client.post(
         "/words",
         data=form_payload(components_json=components_json({"prefix": "ག", "root": "མ"})),
         follow_redirects=False,
     )
-    # 有提示时回到编辑页，让用户看到具体提示
+    assert response.status_code == 303
+    location = response.headers["location"]
+    assert location.startswith("/?")      # 回列表，不是回编辑页
+    assert "/edit" not in location
+    assert "level=warn" in location
+    assert models.count_words() == 1      # 照样存下去了
+
+
+def test_create_with_a_hard_error_stays_on_the_edit_page(client):
+    """「无法合成」级别的错误才把用户留在编辑页。
+
+    前端本来就会拦下这种提交，这里是服务端的兜底。
+    这里用「下加字 ཧ」来造 error —— 它已按规则文档从组件表里移除，
+    属于「不在内置组件表中」，能带着基字一起过 word_from_request，
+    但校验时是 error 而不是 warning。
+    （「只选元音没选基字」那种根本到不了这一步，word_from_request 直接 400。）
+    """
+    response = client.post(
+        "/words",
+        data=form_payload(components_json=components_json({"root": "ག", "subjoined": "ཧ"})),
+        follow_redirects=False,
+    )
     assert response.status_code == 303
     assert "/edit" in response.headers["location"]
-    assert "level=warn" in response.headers["location"]
-    assert models.count_words() == 1
+
+
+def test_update_warns_but_returns_to_the_list(client):
+    """编辑时保存带提示的组合，同样回列表而不是留在编辑页。"""
+    client.post("/words", data=form_payload())
+    word = models.list_words()[0]
+
+    response = client.post(
+        f"/words/{word.id}",
+        data=form_payload(components_json=components_json({"prefix": "ག", "root": "མ"})),
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    location = response.headers["location"]
+    assert location.startswith("/?") and "/edit" not in location
 
 
 def test_update_word(client):
@@ -443,6 +481,23 @@ def test_api_preview_returns_allowed_components(client):
     assert allowed[1]["suffix2"] == ["ས"]
     # 「无」选项不在名单里，由前端保持不变
     assert "" not in allowed[0]["root"]
+
+
+def test_none_option_is_not_rendered_in_the_tibetan_font(client):
+    """选中「无」时不能继续用藏文字体。
+
+    藏文字体的字身按三四层堆叠设计，一个汉字放进去上缘会被下拉框裁掉。
+    做成「选中空值时挂 is-none 类、换回界面字体」。
+    """
+    css = (BASE_DIR / "static" / "style.css").read_text(encoding="utf-8")
+    assert "select.tibetan-select.is-none" in css
+    assert "font-family: inherit" in css
+
+    script = (BASE_DIR / "static" / "app.js").read_text(encoding="utf-8")
+    assert "syncSelectFont" in script
+    assert "is-none" in script
+    # 换字体要在 change 当时就生效，不能等预览防抖那 140ms
+    assert "watchSelect" in script
 
 
 def test_edit_page_filters_dropdowns(client):

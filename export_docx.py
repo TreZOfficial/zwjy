@@ -407,17 +407,16 @@ def _set_column_widths(table: Table, widths_cm: Sequence[float]) -> None:
 
 
 def _add_tibetan_run(paragraph, text: str, options: ExportOptions, *, size_pt=None):
-    """往段落里追加一段藏文：复杂文本字体 + 加粗。
+    """往段落里追加一段藏文：复杂文本字体 + 字号。
 
-    一律加粗是为了打印——藏文笔画细、字身又小，不加重的话打印出来发虚。
-    藏文字体大多没有真正的粗体字重，Word 会做合成加粗，效果是「更实」而不是
-    「更粗」，正好是想要的效果。
+    这里**不加粗**。早先为了让打印效果「更实」加过一次 ``w:b`` / ``w:bCs``，
+    后来去掉了——藏文字体大多没有真正的粗体字重，Word 只能做合成加粗，
+    笔画堆叠处会糊成一片，反而不好认。
     """
     run = paragraph.add_run(_safe_text(text))
     _style_run(
         run,
         size_pt=size_pt if size_pt is not None else options.tibetan_size_pt,
-        bold=True,
         ascii_font=options.tibetan_font,
         east_asia_font=options.tibetan_font,
         cs_font=options.tibetan_font,   # 藏文走的是复杂文本字体

@@ -749,20 +749,30 @@ def validate_word(components: WordComponents) -> list[Issue]:
 # ---------------------------------------------------------------------------
 # 六、给界面用的辅助函数
 # ---------------------------------------------------------------------------
+#: 下拉框里表示「不选」的那一项显示什么。
+#:
+#: 用破折号而不是汉字「无」：下拉框为了把藏文显示清楚用的是 24px 的藏文字体，
+#: 汉字字形套进藏文字体的行度量里，上缘会被裁掉；而原生 select 的弹出列表
+#: 又会继承 select 的字号，没法「只在收起态把字缩小」。破折号在几乎任何字体里
+#: 都是居中的一根横线，不挑字体度量，于是全局都能保持 24px。
+#: 详细的三次踩坑记录见 static/style.css 里 .tibetan-select 那段注释。
+NONE_LABEL: str = "—"
+
+
 def build_component_options() -> dict[str, list[dict[str, str]]]:
     """生成 7 个下拉框的选项数据，供 Jinja2 模板渲染。
 
-    每个下拉框的第一个选项都是「无」（基字除外，基字必选）。
+    每个下拉框的第一个选项都表示「不选」，显示为 :data:`NONE_LABEL`
+    （基字除外，基字必选）。
     """
     def options(values: Iterable[str], *, allow_none: bool = True,
-                none_label: str = "无") -> list[dict[str, str]]:
+                none_label: str = NONE_LABEL) -> list[dict[str, str]]:
         items = ([{"value": "", "label": none_label}] if allow_none else [])
         items += [{"value": v, "label": v} for v in values]
         return items
 
-    # 「无」选项的文案要尽量短。原因见 static/style.css 里 .tibetan-select 的说明：
-    # 下拉框为了把藏文显示清楚用了很大的字号，选项文字一旦有七八个汉字就会
-    # 撑破下拉框。是「无」还是「不加前加字」由它上方的字段名交代，写在这里是多余的。
+    # 选项文案一律只占一个字符，别写「不加前加字」这种长句：
+    # 下拉框的字号很大，长文案会撑破框子；是哪一项由它上方的字段名交代，写在这里是多余的。
     return {
         "prefix": options(PREFIXES),
         "superscript": options(SUPERSCRIPTS),

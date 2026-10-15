@@ -15,6 +15,7 @@ import pytest
 
 from tibetan import (
     MAX_SUBJOINED,
+    NONE_LABEL,
     PREFIXES,
     PREFIX_ROOT_RULES,
     ROOTS,
@@ -641,11 +642,11 @@ def test_all_component_options_include_none_except_root():
     # 基字必选，下拉框里没有「无」
     assert all(item["value"] for item in options["root"])
     assert len(options["root"]) == 30
-    # 其余 6 个都有「无」选项（连元音也是——留空就是默认元音 a，
+    # 其余 6 个都有「不选」项（连元音也是——留空就是默认元音 a，
     # 这个说明写在字段名上，不占选项的宽度）
     for key in ("prefix", "superscript", "subjoined", "vowel", "suffix", "suffix2"):
         assert options[key][0]["value"] == "", key
-        assert options[key][0]["label"] == "无", key
+        assert options[key][0]["label"] == NONE_LABEL, key
 
 
 def test_component_option_labels_stay_short():

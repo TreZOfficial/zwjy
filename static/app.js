@@ -104,8 +104,7 @@
     const node = subjoinedTemplate.content.firstElementChild.cloneNode(true);
     const select = node.querySelector('select');
     select.value = value || '';
-    syncSelectFont(select);
-    watchSelect(select);
+    select.addEventListener('change', scheduleRefresh);
 
     node.querySelector('.btn-remove-subjoined').addEventListener('click', () => {
       node.remove();
@@ -146,8 +145,7 @@
     });
 
     node.querySelectorAll('select').forEach((select) => {
-      syncSelectFont(select);
-      watchSelect(select);
+      select.addEventListener('change', scheduleRefresh);
     });
 
     node.querySelector('.btn-add-subjoined').addEventListener('click', () => {
@@ -241,22 +239,6 @@
   //   2. 用户看得见「这个确实配不了」，本身就是规则提示；
   //   3. 删掉再重建容易把当前选中项弄丢。
   // 另外「无」和「当前已选中项」永远不置灰——否则界面看起来像坏了。
-  // 选中「无」时把下拉框换成界面字体。
-  // 藏文字体（Microsoft Himalaya / Noto Sans Tibetan 等）的字身是按三四层
-  // 堆叠设计的，一个汉字放进 24px 的藏文字体里，上缘会被下拉框裁掉。
-  // 「无」是界面文字、不是藏文，本来也不该用藏文字体渲染。
-  function syncSelectFont(select) {
-    select.classList.toggle('is-none', select.value === '');
-  }
-
-  /** 给下拉框挂上「换字体 + 刷新预览」的监听 */
-  function watchSelect(select) {
-    select.addEventListener('change', () => {
-      syncSelectFont(select);
-      scheduleRefresh();
-    });
-  }
-
   function disableUnlisted(select, values) {
     select.querySelectorAll('option').forEach(function (option) {
       if (option.value === '' || option.selected) {

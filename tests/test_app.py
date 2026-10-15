@@ -14,7 +14,7 @@ import pytest
 from docx import Document
 
 import models
-from tibetan import SUPER_ROOT_RULES, Syllable, WordComponents
+from tibetan import NONE_LABEL, SUPER_ROOT_RULES, Syllable, WordComponents
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -483,21 +483,28 @@ def test_api_preview_returns_allowed_components(client):
     assert "" not in allowed[0]["root"]
 
 
-def test_none_option_is_not_rendered_in_the_tibetan_font(client):
-    """选中「无」时不能继续用藏文字体。
+def test_none_option_avoids_a_cjk_glyph(client):
+    """「不选」那一项用符号，不用汉字。
 
-    藏文字体的字身按三四层堆叠设计，一个汉字放进去上缘会被下拉框裁掉。
-    做成「选中空值时挂 is-none 类、换回界面字体」。
+    下拉框是 24px 的藏文字体，汉字字形套进藏文字体的行度量里上缘会被裁掉。
+    试过的两条弯路都不行（缩小 select 会连带把弹出列表里的藏文变小；
+    给 option 单独定字号在弹出层里不可靠），最后是换掉字形本身：
+    破折号在几乎任何字体里都是居中的一根横线，不挑字体度量。
     """
-    css = (BASE_DIR / "static" / "style.css").read_text(encoding="utf-8")
-    assert "select.tibetan-select.is-none" in css
-    assert "font-family: inherit" in css
+    assert NONE_LABEL == "—"
+    page = client.get("/words/new").text
+    # 音节模板里 5 个可留空字段（前加字/上加字/元音/后加字/再后加字）
+    # + 下加字的叠层模板 1 个；基字必选，没有「不选」项
+    assert len(re.findall(r'<option value=""[^>]*>—</option>', page)) == 6
+    # 收起态和弹出列表都用 select 自己的字体字号，别再按空值切换
 
+    # 别再引入「按空值切换字体 / 字号」那套。注意只看**选择器**，
+    # 别匹配到 style.css 里解释这两条弯路的那段注释。
+    css = (BASE_DIR / "static" / "style.css").read_text(encoding="utf-8")
+    assert not re.search(r"\.is-none\s*[,{]", css)
     script = (BASE_DIR / "static" / "app.js").read_text(encoding="utf-8")
-    assert "syncSelectFont" in script
-    assert "is-none" in script
-    # 换字体要在 change 当时就生效，不能等预览防抖那 140ms
-    assert "watchSelect" in script
+    assert "syncSelectFont" not in script
+    assert "classList.toggle('is-none'" not in script
 
 
 def test_edit_page_filters_dropdowns(client):

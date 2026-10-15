@@ -147,7 +147,7 @@ textarea { resize: vertical; min-height: 62px; }
    为了把三四层高的辅音堆叠塞进一个字身，单个基字只占 em 的 40% 左右——
    同样写 17px，中文看着正常，藏文看着只有 6~7px，基本看不清。
    反过来，字号一大，选项里若有七八个汉字就会撑破下拉框，
-   所以下加字等「无」选项的文案都压缩成了一个「无」字（见 tibetan.build_component_options）。 */
+   所以每个选项的文案都只有一个字符（见 tibetan.build_component_options 与 NONE_LABEL）。 */
 select.tibetan-select {
   font-family: var(--tibetan-font);
   font-size: 24px;
@@ -156,15 +156,18 @@ select.tibetan-select {
   padding: 3px 8px;
 }
 
-/* 选中「无」时换回界面字体、缩回正常字号。
-   藏文字体的字身是按三四层高的辅音堆叠设计的，字面上下的留白跟汉字对不上：
-   把「无」放进 24px 的藏文字体，上缘会被下拉框裁掉。
-   「无」是界面文字、不是藏文，本来也不该用藏文字体渲染。
-   （class 由 static/app.js 的 syncSelectFont 挂上） */
-select.tibetan-select.is-none {
-  font-family: inherit;
-  font-size: 14px;
-}
+/* 空值那一项（「—」）和藏文在同一个字号下渲染，这是有意为之，别去改小它。
+   走过的弯路：
+   1. 最早标签是汉字「无」，24px 下上缘会被裁——汉字字形套在藏文字体的
+      行度量里，字面的上下留白对不上，换行高、换 select 字号都救不了。
+   2. 于是改成「选中空值时给 select 挂 is-none、换界面字体 + 缩小字号」。
+      收起态是好看了，但**原生 select 的弹出列表会继承 select 的字号**，
+      列表里的藏文跟着一起变小，更糟。
+   3. 又试过「select 缩小 + option 单独定 24px」。实测 option 的 font-size
+      在弹出层里不可靠，白折腾。
+   最终解法是换掉字形本身：标签改成「—」（em dash）。
+   破折号在几乎任何字体里都是居中的一根横线，不依赖汉字行度量，
+   于是 select 可以一直保持 24px，弹出列表里的藏文也就一直是大的。 */
 
 /* 直接输入藏文的文本框（用于没有音节组件的词条） */
 input.tibetan-input {

@@ -497,6 +497,76 @@ def test_uncommon_subjoined_root_pair_warns():
     assert any(i.level == "warning" for i in issues)
 
 
+def test_ra_superscript_takes_ja():
+    """རྗ（如 རྗེ 主、རྗེས 之后）是常见搭配，不该报警告。
+
+    早期版本的上加字表漏了 ཇ——十二个 ར་མགོ 里正好少了它，
+    于是 རྗེ 这种常用词一录就被误报。
+    """
+    assert validate_syllable(Syllable(superscript="ར", root="ཇ")) == []
+    # 十二个经典 ར་མགོ 全都要通过
+    for root in "ཀགངཇཉཏདནབམཙཛ":
+        assert validate_syllable(Syllable(superscript="ར", root=root)) == [], root
+
+
+def test_prefix_tables_cover_the_full_attested_sets():
+    """前加字 ག / འ 的搭配表各漏过几个常用基字。
+
+    - ག 漏了 ཙ ཞ ཟ：གཞི（基础）、གཞན（其他）、གཟའ（行星）、གཙོ（主要）
+    - འ 漏了 ཆ：འཆར་བ（生起、出现）
+    """
+    for root in "ཅཉཏདནཙཞཟཤསཡ":          # ག 的十一个
+        assert validate_syllable(Syllable(prefix="ག", root=root)) == [], root
+    for root in "ཁགཆཇཐདཕབཚཛ":            # འ 的十个
+        assert validate_syllable(Syllable(prefix="འ", root=root)) == [], root
+
+
+def test_same_cluster_gets_the_same_verdict_however_it_is_split():
+    """同一串字，不管按哪种拆法录入，结论必须一致。
+
+    藏文里同一个字节序列常常有不止一种拆法，两种拆法写出来**一模一样**：
+
+        ས + ྲ    上加字 ས / 基字 ར    （སྲིད་པ 轮回、སྲོག 命、སྲུང 保护）
+        ས + ྲ    基字 ས / 下加字 ྲ
+
+    用户只能挑一种拆法，但这串字算不算藏文跟挑哪种拆法无关。
+    早先上加字那一支只看 SUPER_ROOT_RULES，于是同一个词按上加字录会被
+    误报「搭配不常见」，按基字 + 下加字录却不报。
+
+    这条测试把两个方向的所有拆法都枚举一遍，按合成出的字节分组，
+    要求同组的结论相同——以后再往表里加东西，也不会重新撕开这个口子。
+    """
+
+    def cluster(superscript: str = "", root: str = "", subjoined: str = "") -> str:
+        """这段组件实际合成出来的字节序列。"""
+        text = superscript + SUBJOINED_MAP[root] if superscript else root
+        return text + (SUBJOINED_MAP[subjoined] if subjoined else "")
+
+    def verdict(**kwargs) -> bool:
+        subjoined = kwargs.get("subjoined") or ""
+        syllable = Syllable(
+            superscript=kwargs.get("superscript", ""),
+            root=kwargs.get("root", ""),
+            subjoined=[subjoined] if subjoined else [],
+        )
+        return not validate_syllable(syllable)
+
+    groups: dict[str, set[bool]] = {}
+    for sup in SUPERSCRIPTS:
+        for root in ROOTS:
+            groups.setdefault(cluster(superscript=sup, root=root), set()).add(
+                verdict(superscript=sup, root=root)
+            )
+    for root in ROOTS:
+        for sub in SUBJOINED:
+            groups.setdefault(cluster(root=root, subjoined=sub), set()).add(
+                verdict(root=root, subjoined=sub)
+            )
+
+    inconsistent = {text: v for text, v in groups.items() if len(v) > 1}
+    assert not inconsistent, f"同一串字结论不一致：{inconsistent}"
+
+
 def test_suffix2_after_unusual_suffix_warns():
     """再后加字 ས 通常只跟在 ག / ང / བ / མ 之后。"""
     issues = validate_syllable(Syllable(root="ཀ", suffix="ད", suffix2="ས"))

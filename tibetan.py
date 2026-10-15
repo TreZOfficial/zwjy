@@ -398,18 +398,39 @@ def compose_word(
 # 这一取舍是刻意的——宁可提示得保守一点，也不要误报。
 
 #: 前加字 × 基字 的常见搭配
+#:
+#: 每个前加字的完整搭配（据《藏文前加字》条目与 Gutenberg 的 Tibetan Grammar）：
+#: ག 十一个、ད 六个、བ 十四个、མ 十二个、འ 十个。
 PREFIX_ROOT_RULES: dict[str, frozenset[str]] = {
-    "ག": frozenset("ཅཉཏདནཤསཡ"),
+    # གཅ གཉ གཏ གད གན གཙ གཞ གཟ གཡ གཤ གས
+    # 早先漏了 ཙ ཞ ཟ：གཞི（基础）、གཞན（其他）、གཟའ（行星）、གཙོ（主要）
+    # 都是极常用的词，按旧表会被误报成「搭配不常见」。
+    "ག": frozenset("ཅཉཏདནཙཞཟཤསཡ"),
+    # དཀ དག དང དཔ དབ དམ
     "ད": frozenset("ཀགངཔབམ"),
+    # བཀ བག བཅ བཉ བཏ བད བན བཙ བཞ བཟ བཤ བས བར བལ
     "བ": frozenset("ཀགཅཉཏདནཙཞཟཤསརལ"),
+    # མཁ མག མང མཆ མཇ མཉ མཐ མད མན མཕ མཚ མཛ
     "མ": frozenset("ཁགངཆཇཉཐདནཕཚཛ"),
-    "འ": frozenset("ཁགཇཐདཕབཚཛ"),
+    # འཁ འཆ འཐ འཕ འཚ འག འཇ འད འབ འཛ
+    # 早先漏了 ཆ：འཆར་བ（生起、出现）这类常用词会被误报。
+    "འ": frozenset("ཁགཆཇཐདཕབཚཛ"),
 }
 
 #: 上加字 × 基字 的常见搭配
+#:
+#: 三个上加字的经典搭配（据 Basic Tibetan 的 མགོ་ཅན་གསུམ 一节）：
+#: ར 配 ཀ ག ང ཇ ཉ ཏ ད ན བ མ ཙ ཛ、ལ 配 ཀ ག ང ཅ ཇ ཏ ད པ བ ཧ、
+#: ས 配 ཀ ག ང ཉ ཏ ད ན པ བ མ ཙ。
+#: 下面在经典清单之外还多收了一些有据可查的搭配（如 ར 带 པ、ས 带 ཤ ལ），
+#: 按「宁可漏报也不误报」的取舍——理由见本文件开头校验一节的说明。
 SUPER_ROOT_RULES: dict[str, frozenset[str]] = {
-    "ར": frozenset("ཀགངཉཏདནཔབམཙཛཞཟལསཧ"),
+    # རྐ རྒ རྔ རྗ རྙ རྟ རྡ རྣ རྦ རྨ རྩ རྫ
+    # 早先漏了 ཇ：རྗེ（主）、རྗེས（之后）都很常用，会被误报。
+    "ར": frozenset("ཀགངཇཉཏདནཔབམཙཛཞཟལསཧ"),
+    # ལྐ ལྒ ལྔ ལྕ ལྗ ལྟ ལྡ ལྤ ལྦ ལྷ
     "ལ": frozenset("ཀགངཅཇཏདཔབམཧ"),
+    # སྐ སྒ སྔ སྙ སྟ སྡ སྣ སྤ སྦ སྨ སྩ
     "ས": frozenset("ཀགངཉཏདནཔབམཙཛཤལ"),
 }
 
@@ -480,6 +501,16 @@ class Issue:
 
 def _syllable_desc(index: int, total: int) -> str:
     return f"第 {index + 1} 个音节" if total > 1 else "该音节"
+
+
+def _is_valid_super_pair(superscript: str, root: str) -> bool:
+    """上加字『superscript』配基字『root』是否属于常见搭配。"""
+    return root in SUPER_ROOT_RULES.get(superscript, frozenset())
+
+
+def _is_valid_subjoined_pair(root: str, subjoined: str) -> bool:
+    """基字『root』配第一层下加字『subjoined』是否属于常见搭配。"""
+    return root in SUBJOINED_ROOT_RULES.get(subjoined, frozenset())
 
 
 def validate_syllable(
@@ -558,7 +589,16 @@ def validate_syllable(
                 Issue("warning", index,
                       f"{where}：基字『{root}』通常不加在上加字下方。")
             )
-        elif root not in SUPER_ROOT_RULES.get(syllable.superscript, frozenset()):
+        elif (
+            not _is_valid_super_pair(syllable.superscript, root)
+            # 同一串字常常有不止一种拆法，两种拆法写出**完全相同的字节**：
+            #     ས + ྲ    上加字 ས / 基字 ར    （སྲིད་པ 轮回、སྲོག 命、སྲུང 保护）
+            #     ས + ྲ    基字 ས / 下加字 ྲ
+            # 用户只能挑一种拆法，但这串字算不算藏文跟挑哪种拆法无关。
+            # 所以另一种读法成立时就不报警告——否则同一个词录两遍、
+            # 仅仅拆法不同，得到的提示却不一样。
+            and not _is_valid_subjoined_pair(syllable.superscript, root)
+        ):
             issues.append(
                 Issue("warning", index,
                       f"{where}：上加字『{syllable.superscript}』与基字『{root}』"
@@ -576,7 +616,14 @@ def validate_syllable(
             issues.append(
                 Issue("warning", index, f"{where}：基字『{root}』通常不加下加字。")
             )
-        elif root not in SUBJOINED_ROOT_RULES.get(first, frozenset()):
+        elif (
+            not _is_valid_subjoined_pair(root, first)
+            # 与上加字那一支同样的道理，只是方向相反：
+            #     ར + ྷ    基字 ར / 下加字 ཧ
+            #     ར + ྷ    上加字 ར / 基字 ཧ   （ལྷ 神、རྷ 是梵文转写）
+            # 两种拆法字节相同，结论也必须相同。
+            and not _is_valid_super_pair(root, first)
+        ):
             issues.append(
                 Issue("warning", index,
                       f"{where}：下加字『{first}』与基字『{root}』"

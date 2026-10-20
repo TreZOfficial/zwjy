@@ -367,7 +367,7 @@ def test_list_page_has_the_three_create_actions(client):
     word = models.list_words()[0]
     page = client.get("/").text
 
-    assert "依次创建" in page
+    assert "依此创建" in page
     assert "此后创建" in page
     assert "依此且此后创建" in page
     assert f"/words/new?copy_from={word.id}" in page

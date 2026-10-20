@@ -42,6 +42,7 @@ tibetan.py —— 藏文音节合成器与合法性校验
 from __future__ import annotations
 
 import json
+import re
 import unicodedata
 from dataclasses import asdict, dataclass, field
 from typing import Any, Iterable
@@ -171,6 +172,45 @@ SHAD: str = "།"
 #: 从网页或旧文档里复制藏文时很容易带进来，跟工具输出的 U+0F0B 不相等，
 #: 会导致「搜索明明有这个词却搜不到」，所以统一归一成 U+0F0B。
 TSHEG_BSTAR: str = "༌"
+
+#: 这两个字母结尾的词语，后面**不写** །。
+#: 规则见「藏文规则.md」：ཀ / ག 之后不再加 ཤད。
+SHAD_ABSENT_AFTER: frozenset[str] = frozenset("ཀག")
+
+#: 这个字母结尾的词语，要先写 ་ 再写 །（ང་།）。
+#: 规则见「藏文规则.md」：ང 之后需要先加 tsheg 再加 ཤད。
+TSHEG_BEFORE_SHAD_AFTER: frozenset[str] = frozenset("ང")
+
+
+#: 词尾的「（可选 tsheg）+ 一个或多个 །」。先剥再补，反复保存才不会越加越多。
+#:
+#: 前面的 ་ 也要一起吃掉：ང 结尾的写法是 ང་།，如果只剥 །，
+#: 再保存一次就会变成 ང་་།。
+_TRAILING_SHAD_RE = re.compile(r"(?:་)?།+$")
+
+
+def strip_trailing_shad(text: str) -> str:
+    """去掉词尾已有的 །（连同它前面那个 ་）。"""
+    return _TRAILING_SHAD_RE.sub("", text)
+
+
+def append_trailing_shad(text: str) -> str:
+    """按**词尾字母**决定怎么收尾。
+
+    - 词尾是 ཀ / ག：不加任何标点（规则如此，不是漏了）
+    - 词尾是 ང：先补一个 ་，再补 །
+    - 其余：直接补 །
+
+    传进来的文本应当已经去掉过尾部的 ། 和 ་།，否则连着调用会越加越多。
+    """
+    if not text:
+        return text
+    last = text[-1]
+    if last in SHAD_ABSENT_AFTER:
+        return text
+    if last in TSHEG_BEFORE_SHAD_AFTER:
+        return text + TSHEG + SHAD
+    return text + SHAD
 
 
 def normalize_text(text: str) -> str:
@@ -388,9 +428,10 @@ def compose_word(
     pieces = [compose_syllable(s) for s in syllables]
     pieces = [p for p in pieces if p]  # 丢弃无法合成的空音节
     word = (TSHEG if auto_join else "").join(pieces)
-    # 一个音节都没合成出来时不加 །，避免出现只有一个标点、没有内容的空词
+    # 一个音节都没合成出来时不加标点，避免出现只有标点、没有内容的空词。
+    # 具体加什么由**词尾字母**决定：ཀ/ག 不加、ང 加 ་།、其余加 །（见 append_trailing_shad）
     if word and trailing_shad:
-        word += SHAD
+        word = append_trailing_shad(word)
     return word
 
 

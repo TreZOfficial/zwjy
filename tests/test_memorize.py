@@ -106,18 +106,20 @@ def test_subjoined_maps_match_python(js):
     assert js_tail == SUBJOINED_TAIL_MAP
 
 
-@pytest.mark.parametrize("label,syllable,expected", [
-    ("基字+元音+后加字", blank(root="ཀ", vowel="ི", suffix="ག"), "ཀིག"),
-    ("上加字+基字+元音", blank(superscript="ས", root="ཀ", vowel="ུ"), "སྐུ"),
+@pytest.mark.parametrize("label,syllable,expected,tail", [
+    # 词尾标点按词尾字母定：ཀ/ག 不加、ང 加 ་།、其余加 །
+    ("基字+元音+后加字（ག 结尾，不加标点）", blank(root="ཀ", vowel="ི", suffix="ག"), "ཀིག", ""),
+    ("后缀 ང（先 ་ 再 །）", blank(root="ཐ", suffix="ང"), "ཐང", "་།"),
+    ("上加字+基字+元音", blank(superscript="ས", root="ཀ", vowel="ུ"), "སྐུ", "།"),
     ("七组件齐全", blank(prefix="བ", superscript="ས", root="ག", subjoined=["ར"],
-                        vowel="ུ", suffix="བ", suffix2="ས"), "བསྒྲུབས"),
-    ("双下加字", blank(root="ད", subjoined=["ར", "ཝ"]), "དྲྭ"),
-    ("默认元音 a", blank(root="ས"), "ས"),
-    ("下加字 ཡ", blank(root="བ", subjoined=["ཡ"]), "བྱ"),
+                        vowel="ུ", suffix="བ", suffix2="ས"), "བསྒྲུབས", "།"),
+    ("双下加字", blank(root="ད", subjoined=["ར", "ཝ"]), "དྲྭ", "།"),
+    ("默认元音 a", blank(root="ས"), "ས", "།"),
+    ("下加字 ཡ", blank(root="བ", subjoined=["ཡ"]), "བྱ", "།"),
 ])
-def test_js_composer_matches_known_values(js, label, syllable, expected):
+def test_js_composer_matches_known_values(js, label, syllable, expected, tail):
     got = H.call(js, "composeWord", ("__json__", [syllable]), True, True)
-    assert got == expected + "།", label
+    assert got == expected + tail, label
 
 
 def test_js_composer_matches_python_on_every_bank_word(js):
@@ -310,6 +312,73 @@ def test_storage_key_is_namespaced_by_bank(js):
     # 键名是拼出来的，不是写死的常量
     assert "STORE_KEY = 'zwjy-memory:v1:' +" in script or \
            'STORE_KEY = "zwjy-memory:v1:" +' in script
+
+
+# ---------------------------------------------------------------------------
+# 换词库时的进度迁移
+# ---------------------------------------------------------------------------
+def _storage(interp) -> dict:
+    """把 JS 里那个 localStorage 替身的当前内容读回 Python。"""
+    return json.loads(interp.evaljs("JSON.stringify(__localStorage.dump())"))
+
+
+def test_progress_is_migrated_when_the_bank_is_renamed():
+    """换词库名（data-bank-id）后，旧键里属于本词库的进度要接过来。
+
+    词条 id 是藏文哈希，跟词库名无关，所以能按 id 对上。
+    """
+    bank = H.extract_bank()
+    target = bank[0]
+    keep = {"right": 5, "wrong": 1, "streak": 2, "last": 123}
+
+    interp = H.load_app(local_storage={
+        "zwjy-memory:v1:上一版词库": json.dumps({
+            "words": {target["id"]: keep, "不是本词库的编号": {"right": 9, "wrong": 0, "streak": 9, "last": 9}},
+            "settings": {},
+        }),
+    })
+
+    saved = json.loads(_storage(interp)["zwjy-memory:v1:" + H.bank_id()])
+    assert saved["words"][target["id"]] == keep
+    # 不在当前词库里的 id 不合并——别的词库的进度混不进来
+    assert "不是本词库的编号" not in saved["words"]
+
+
+def test_migration_keeps_the_current_banks_own_records():
+    """当前键里已有的记录优先，不会被旧词库的数据覆盖。"""
+    word_id = H.extract_bank()[0]["id"]
+    mine = {"right": 1, "wrong": 0, "streak": 1, "last": 1}
+    theirs = {"right": 9, "wrong": 9, "streak": 9, "last": 9}
+    key = "zwjy-memory:v1:" + H.bank_id()
+
+    interp = H.load_app(local_storage={
+        key: json.dumps({"words": {word_id: mine}, "settings": {}}),
+        "zwjy-memory:v1:旧": json.dumps({"words": {word_id: theirs}, "settings": {}}),
+    })
+
+    assert json.loads(_storage(interp)[key])["words"][word_id] == mine
+
+
+def test_progress_is_migrated_only_once():
+    """迁移只做一次：清空进度之后，旧键里的数据不许再复活。"""
+    word_id = H.extract_bank()[0]["id"]
+    key = "zwjy-memory:v1:" + H.bank_id()
+    old_key = "zwjy-memory:v1:旧"
+
+    interp = H.load_app(local_storage={
+        old_key: json.dumps({
+            "words": {word_id: {"right": 3, "wrong": 0, "streak": 3, "last": 1}},
+            "settings": {},
+        }),
+    })
+    state = _storage(interp)
+    assert word_id in json.loads(state[key])["words"]      # 第一次：迁移过来了
+
+    # 模拟「清空全部进度」按钮：store 被重置成空对象
+    state[key] = json.dumps({"words": {}, "settings": {}})
+    interp2 = H.load_app(local_storage=state)
+
+    assert json.loads(_storage(interp2)[key])["words"] == {}
 
 
 def test_pages_mirror_is_up_to_date():

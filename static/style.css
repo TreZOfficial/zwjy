@@ -191,6 +191,16 @@ input.tibetan-input {
   white-space: nowrap;
 }
 .btn:hover { border-color: var(--accent-soft); color: var(--accent); }
+
+/* 排序按钮只放一个箭头，别占太宽；到顶/到底时置灰 */
+.btn-move { padding: 7px 8px; min-width: 30px; justify-content: center; }
+.btn:disabled,
+.btn[disabled] {
+  opacity: .38;
+  cursor: not-allowed;
+}
+.btn:disabled:hover,
+.btn[disabled]:hover { border-color: var(--line); color: var(--ink); }
 .btn-primary {
   background: var(--accent);
   border-color: var(--accent);

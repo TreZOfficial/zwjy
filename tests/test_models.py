@@ -516,3 +516,122 @@ def test_backup_and_sample_file_share_one_format(sample_words):
     assert set(sample_word) == set(exported_word)
     assert isinstance(sample_word["components"], dict)
     assert isinstance(exported_word["components"], dict)
+
+
+# ---------------------------------------------------------------------------
+# 手工排序
+# ---------------------------------------------------------------------------
+def test_new_words_are_appended_to_the_end():
+    first = models.create_word(make_word(meaning="一"))
+    second = models.create_word(make_word(meaning="二"))
+    third = models.create_word(make_word(meaning="三"))
+
+    ordered = [w.id for w in models.list_words(sort="manual")]
+    assert ordered == [first, second, third]
+    assert [w.position for w in models.list_words(sort="manual")] == [1, 2, 3]
+
+
+def test_move_word_up_and_down():
+    a = models.create_word(make_word(meaning="一"))
+    b = models.create_word(make_word(meaning="二"))
+    c = models.create_word(make_word(meaning="三"))
+
+    assert models.move_word(c, "up") is True
+    assert [w.id for w in models.list_words(sort="manual")] == [a, c, b]
+
+    assert models.move_word(c, "down") is True
+    assert [w.id for w in models.list_words(sort="manual")] == [a, b, c]
+
+    # 下移的是 b，让它越过 a
+    assert models.move_word(a, "down") is True
+    assert [w.id for w in models.list_words(sort="manual")] == [b, a, c]
+
+
+def test_move_word_at_the_edges_does_nothing():
+    a = models.create_word(make_word(meaning="一"))
+    b = models.create_word(make_word(meaning="二"))
+
+    assert models.move_word(a, "up") is False      # 已经在最前
+    assert models.move_word(b, "down") is False    # 已经在最后
+    assert models.move_word(999999, "up") is False  # 不存在
+    assert models.move_word(a, "sideways") is False  # 方向非法
+    assert [w.id for w in models.list_words(sort="manual")] == [a, b]
+
+
+def test_move_word_only_swaps_within_the_current_filter():
+    """带筛选条件换位时，交换的是用户**看得见**的上一条。"""
+    one = models.create_word(make_word(meaning="一", tags=["甲"]))
+    hidden = models.create_word(make_word(meaning="二", tags=["乙"]))
+    three = models.create_word(make_word(meaning="三", tags=["甲"]))
+
+    assert models.move_word(three, "up", tag="甲") is True
+    # 仅看标签甲时 two 在隐藏的 hidden 之前
+    assert [w.id for w in models.list_words(tag="甲", sort="manual")] == [three, one]
+    # 隐藏的那条位置没被动过
+    assert [w.id for w in models.list_words(sort="manual")] == [three, hidden, one]
+
+
+def test_backup_does_not_leak_position():
+    models.create_word(make_word())
+    exported = models.export_payload()
+    assert "position" not in exported["words"][0]
+
+
+def test_import_renumbers_position_by_file_order():
+    payload = {
+        "words": [
+            {"tibetan": "ཀ", "meaning": "甲", "components": {"syllables": [{"root": "ཀ"}]}},
+            {"tibetan": "ཁ", "meaning": "乙", "components": {"syllables": [{"root": "ཁ"}]}},
+        ]
+    }
+    models.import_payload(payload, mode="replace")
+    assert [w.position for w in models.list_words(sort="manual")] == [1, 2]
+
+    # 追加模式接在现有最后一条之后
+    models.import_payload(
+        {"words": [{"tibetan": "ག", "meaning": "丙",
+                    "components": {"syllables": [{"root": "ག"}]}}]},
+        mode="append",
+    )
+    assert [w.tibetan for w in models.list_words(sort="manual")] == ["ཀ", "ཁ", "ག"]
+    assert [w.position for w in models.list_words(sort="manual")] == [1, 2, 3]
+
+
+def test_init_db_migrates_an_old_database(tmp_path, monkeypatch):
+    """老库没有 position 列，init_db 要能自己补上并按录入顺序回填。"""
+    import sqlite3
+
+    db = tmp_path / "old.db"
+    conn = sqlite3.connect(db)
+    conn.execute(
+        """
+        CREATE TABLE words (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tibetan TEXT NOT NULL,
+            components TEXT NOT NULL DEFAULT '{}',
+            meaning TEXT NOT NULL DEFAULT '',
+            note TEXT NOT NULL DEFAULT '',
+            tags TEXT NOT NULL DEFAULT '[]',
+            auto_join INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+    rows = [
+        ("一", "2026-01-01 00:00:00"),
+        ("二", "2026-01-02 00:00:00"),
+        ("三", "2026-01-03 00:00:00"),
+    ]
+    conn.executemany(
+        "INSERT INTO words (tibetan, created_at, updated_at) VALUES (?, ?, ?)",
+        [(t, ts, ts) for t, ts in rows],
+    )
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setenv("ZWJY_DB", str(db))
+    models.init_db()
+
+    assert [w.tibetan for w in models.list_words(sort="manual")] == ["一", "二", "三"]
+    assert [w.position for w in models.list_words(sort="manual")] == [1, 2, 3]

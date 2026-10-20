@@ -98,7 +98,27 @@
               <td class="muted nowrap">{{ word.syllable_count }} 个</td>
               <td class="muted nowrap">{{ word.updated_at }}</td>
               <td class="col-actions">
+                {# 手工排序：首条不能上移、末条不能下移。
+                   表单带上当前的 q / tag，好让换位发生在用户看得见的这份列表里。 #}
+                <form method="post" action="/words/{{ word.id }}/move" style="display:inline">
+                  <input type="hidden" name="direction" value="up">
+                  <input type="hidden" name="q" value="{{ q }}">
+                  <input type="hidden" name="tag" value="{{ tag }}">
+                  <button type="submit" class="btn btn-sm btn-move"
+                          title="{{ '上移' if sort == 'manual' else '切到「手工顺序」才能调整' }}"
+                          {% if loop.first or sort != 'manual' %}disabled{% endif %}>↑</button>
+                </form>
+                <form method="post" action="/words/{{ word.id }}/move" style="display:inline">
+                  <input type="hidden" name="direction" value="down">
+                  <input type="hidden" name="q" value="{{ q }}">
+                  <input type="hidden" name="tag" value="{{ tag }}">
+                  <button type="submit" class="btn btn-sm btn-move"
+                          title="{{ '下移' if sort == 'manual' else '切到「手工顺序」才能调整' }}"
+                          {% if loop.last or sort != 'manual' %}disabled{% endif %}>↓</button>
+                </form>
                 <a class="btn btn-sm" href="/words/{{ word.id }}/edit">编辑</a>
+                <a class="btn btn-sm" href="/words/new?copy_from={{ word.id }}"
+                   title="以这个词的音节结构为模板，新建一条">从该词汇新增</a>
                 <form method="post" action="/words/{{ word.id }}/delete" style="display:inline"
                       data-confirm="确定删除「{{ word.tibetan }}」吗？">
                   <button type="submit" class="btn btn-sm btn-danger">删除</button>

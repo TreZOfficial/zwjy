@@ -48,6 +48,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from tibetan import (  # noqa: E402
     SHAD,
+    SHAD_ABSENT_AFTER,
     Syllable,
     WordComponents,
     compose_word,
@@ -325,7 +326,10 @@ def check_entries(
                     continue
                 entry = dict(entry, tibetan=composed)
 
-        if not entry["tibetan"].endswith(SHAD):
+        # 只有「按规则该有收尾标点、却没有」才算异常。
+        # ཀ / ག 结尾的词语本来就不写 །，别把它们算进去。
+        text = entry["tibetan"]
+        if text and not text.endswith(SHAD) and text[-1] not in SHAD_ABSENT_AFTER:
             report["no_shad"] += 1
 
         for tag in entry["tags"]:
@@ -582,7 +586,10 @@ def format_report(report: dict[str, Any]) -> str:
         lines.append(f"提醒：有 {report['empty_components']} 条没有组件，"
                      f"「汉译藏」模式下给不了组件提示（不影响判分）")
     if report["no_shad"]:
-        lines.append(f"提醒：有 {report['no_shad']} 条词尾没有 །")
+        lines.append(
+            f"提醒：有 {report['no_shad']} 条词尾缺少 །"
+            f"（ཀ / ག 结尾按规则本来就不加，不在此列）"
+        )
 
     tags = report.get("tags") or {}
     if tags:

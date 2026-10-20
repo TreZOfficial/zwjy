@@ -67,6 +67,39 @@ var window = {
 };
 """
 
+#: 只在测进度迁移时挂上去的 localStorage 替身。
+#:
+#: 页面用到的接口：getItem / setItem / removeItem / key(index) / length。
+#: 另外加了个 dump()，让测试能把最终状态读回 Python——JS 里的写入不会
+#: 自动同步到 Python 的 dict。
+LOCAL_STORAGE_SHIM = r"""
+var __ls = {};
+var __lsOrder = [];
+var __localStorage = {
+  length: 0,
+  getItem: function (key) {
+    return Object.prototype.hasOwnProperty.call(__ls, key) ? __ls[key] : null;
+  },
+  setItem: function (key, value) {
+    if (!Object.prototype.hasOwnProperty.call(__ls, key)) __lsOrder.push(key);
+    __ls[key] = String(value);
+    __localStorage.length = __lsOrder.length;
+  },
+  removeItem: function (key) {
+    delete __ls[key];
+    for (var i = 0; i < __lsOrder.length; i++) {
+      if (__lsOrder[i] === key) { __lsOrder.splice(i, 1); break; }
+    }
+    __localStorage.length = __lsOrder.length;
+  },
+  key: function (index) {
+    return index >= 0 && index < __lsOrder.length ? __lsOrder[index] : null;
+  },
+  dump: function () { return __ls; }
+};
+window.localStorage = __localStorage;
+"""
+
 
 def read_html() -> str:
     return HTML_PATH.read_text(encoding="utf-8")
@@ -104,8 +137,22 @@ def extract_bank(html: str | None = None) -> list[dict]:
     return json.loads(extract_bank_text(html).replace("<\\/", "</"))
 
 
-def load_app():
+def bank_id() -> str:
+    """页面里 ``data-bank-id`` 的值，也就是拼 localStorage 键用的词库名。"""
+    match = _BANK.search(read_html())
+    if not match:
+        raise AssertionError("index.html 里没找到 id=wordbank 的 JSON")
+    found = re.search(r'data-bank-id="([^"]*)"', match.group(1))
+    return found.group(1) if found else ""
+
+
+def load_app(local_storage: dict | None = None):
     """把页面脚本跑起来，返回一个可以继续 evaljs 的解释器。
+
+    :param local_storage: 传一个 dict 就挂上 localStorage 替身，并预置这些键值
+                          （用来构造「旧词库的进度还在」这种场景）。
+                          不传时保持原样：`window.localStorage` 是 undefined，
+                          页面会退化成内存存储。
 
     用法::
 
@@ -118,9 +165,17 @@ def load_app():
     bank_text = extract_bank_text(html)
     attributes = _BANK.search(html).group(1)
     generated_at = re.search(r'data-generated-at="([^"]*)"', attributes)
+    bank_id_attr = re.search(r'data-bank-id="([^"]*)"', attributes)
 
     interp = dukpy.JSInterpreter()
     interp.evaljs(DOM_SHIM)
+    if local_storage is not None:
+        interp.evaljs(LOCAL_STORAGE_SHIM)
+        for key, value in local_storage.items():
+            interp.evaljs(
+                "window.localStorage.setItem(" + json.dumps(key)
+                + ", " + json.dumps(value) + ");"
+            )
     # 页面一启动就要读词库，先把替身元素喂饱
     interp.evaljs(
         "document.getElementById('wordbank').textContent = " + json.dumps(bank_text) + ";"
@@ -128,6 +183,12 @@ def load_app():
     interp.evaljs(
         "document.getElementById('wordbank').dataset.generatedAt = "
         + json.dumps(generated_at.group(1) if generated_at else "")
+        + ";"
+    )
+    # 页面拿它拼 localStorage 的键名，漏了就会落到 'default' 上
+    interp.evaljs(
+        "document.getElementById('wordbank').dataset.bankId = "
+        + json.dumps(bank_id_attr.group(1) if bank_id_attr else "")
         + ";"
     )
     interp.evaljs(extract_app_script(html))

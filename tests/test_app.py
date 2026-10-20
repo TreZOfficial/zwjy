@@ -304,6 +304,78 @@ def test_create_warns_but_still_saves(client):
     assert models.count_words() == 1      # 照样存下去了
 
 
+def parse_initial(page: str) -> dict:
+    """从编辑页 HTML 里抠出 `const INITIAL = {...};`。"""
+    match = re.search(r"const INITIAL = (\{.*?\});", page, re.S)
+    assert match, "页面里没有 const INITIAL"
+    return json.loads(match.group(1))
+
+
+def test_new_word_can_be_copied_from_another(client):
+    """「从该词汇新增」：组件和标签照搬，释义/备注留空，且不覆盖原词条。"""
+    client.post("/words", data=form_payload(
+        components_json=components_json({"root": "ག", "subjoined": ["ར", "ཝ"]}),
+        meaning="网",
+        tags="名词、第三课",
+    ))
+    source = models.list_words()[0]
+
+    page = client.get(f"/words/new?copy_from={source.id}")
+    assert page.status_code == 200
+
+    initial = parse_initial(page.text)
+    assert initial["syllables"][0]["root"] == "ག"
+    assert initial["syllables"][0]["subjoined"] == ["ར", "ཝ"]
+
+    # 标签带过来；释义和备注是空的
+    assert 'value="名词、第三课"' in page.text
+    assert ">网</textarea>" not in page.text
+    # 仍是新增模式：表单提交到 /words 而不是 /words/{id}
+    assert 'action="/words"' in page.text
+    assert models.count_words() == 1        # 没有凭空多出词条
+
+
+def test_copy_from_missing_word_redirects(client):
+    response = client.get("/words/new?copy_from=999999", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/?")
+
+
+def test_copy_from_word_without_components_redirects(client):
+    """没有组件的词条没法当模板——新增页没有「直接输入藏文」那个回退框。"""
+    word_id = models.create_word(models.Word(tibetan="ཀ", components="{}", meaning="手写"))
+    response = client.get(f"/words/new?copy_from={word_id}", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/?")
+
+
+def test_move_word_route(client):
+    client.post("/words", data=form_payload(meaning="一", tags="甲"))
+    client.post("/words", data=form_payload(meaning="二", tags="甲"))
+    first, second = models.list_words(sort="manual")
+
+    response = client.post(
+        f"/words/{second.id}/move", data={"direction": "up"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert [w.id for w in models.list_words(sort="manual")] == [second.id, first.id]
+
+
+def test_move_route_keeps_the_current_filters(client):
+    client.post("/words", data=form_payload(meaning="一", tags="甲"))
+    word = models.list_words()[0]
+    response = client.post(
+        f"/words/{word.id}/move",
+        data={"direction": "up", "q": "西", "tag": "甲"},
+        follow_redirects=False,
+    )
+    location = response.headers["location"]
+    assert location.startswith("/?")
+    assert "q=%E8%A5%BF" in location      # 西 的 URL 编码
+    assert "tag=%E7%94%B2" in location    # 甲
+
+
 def test_create_with_a_hard_error_stays_on_the_edit_page(client):
     """「无法合成」级别的错误才把用户留在编辑页。
 

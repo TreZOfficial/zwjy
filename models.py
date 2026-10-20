@@ -48,7 +48,11 @@ def get_connection() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    """建表。幂等，可重复调用。"""
+    """建表。幂等，可重复调用。
+
+    ``CREATE TABLE IF NOT EXISTS`` 不会给**已经存在**的表补列，所以后来加的
+    列（目前是 ``position``）要单独走一次 ``ALTER TABLE``。
+    """
     with get_connection() as conn:
         conn.execute(
             """
@@ -61,12 +65,32 @@ def init_db() -> None:
                 tags        TEXT    NOT NULL DEFAULT '[]', -- 标签，JSON 数组
                 auto_join   INTEGER NOT NULL DEFAULT 1,    -- 是否用 ་ 连接音节
                 created_at  TEXT    NOT NULL,
-                updated_at  TEXT    NOT NULL
+                updated_at  TEXT    NOT NULL,
+                position    INTEGER NOT NULL DEFAULT 0     -- 手工排序用的序号
             )
             """
         )
         conn.execute("CREATE INDEX IF NOT EXISTS idx_words_tibetan ON words(tibetan)")
+        _migrate_position_column(conn)
         conn.commit()
+
+
+def _migrate_position_column(conn: sqlite3.Connection) -> None:
+    """老库补 ``position`` 列，并按录入顺序回填 1..N。
+
+    不补的话，升级后第一次 ``SELECT ... position`` 会直接报 no such column。
+    """
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(words)")}
+    if "position" in columns:
+        return
+
+    conn.execute("ALTER TABLE words ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
+    # 回填成和「按录入顺序」一致的序号：老数据先按创建时间、再按 id 排
+    rows = conn.execute("SELECT id FROM words ORDER BY created_at ASC, id ASC").fetchall()
+    conn.executemany(
+        "UPDATE words SET position = ? WHERE id = ?",
+        [(index, row[0]) for index, row in enumerate(rows, start=1)],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -84,6 +108,7 @@ class Word:
     auto_join: bool = True
     created_at: str = ""
     updated_at: str = ""
+    position: int = 0               # 手工排序序号，小的在前
     id: int | None = None
 
     # -- 组件结构（懒解析） ------------------------------------------------
@@ -117,6 +142,7 @@ class Word:
             "auto_join": self.auto_join,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "position": self.position,
         }
 
 
@@ -138,6 +164,8 @@ def _row_to_word(row: sqlite3.Row) -> Word:
         auto_join=bool(row["auto_join"]),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+        # 老库在迁移前读到的是 0；迁移会把它们回填成 1..N
+        position=int(row["position"] or 0),
     )
 
 
@@ -228,6 +256,8 @@ def normalize_tags(raw: str | Iterable[str]) -> list[str]:
 # ---------------------------------------------------------------------------
 #: 列表页可选的排序方式：键 -> (显示名, SQL ORDER BY 片段)
 SORT_OPTIONS: dict[str, tuple[str, str]] = {
+    # 手工顺序就是导出 Word 时用的顺序，也是列表页的默认视图
+    "manual": ("手工顺序（可用 ↑ ↓ 调整）", "position ASC, id ASC"),
     "created_desc": ("创建时间（新→旧）", "created_at DESC, id DESC"),
     "created_asc": ("创建时间（旧→新，即录入顺序）", "created_at ASC, id ASC"),
     "updated_desc": ("更新时间（近→远）", "updated_at DESC, id DESC"),
@@ -236,7 +266,7 @@ SORT_OPTIONS: dict[str, tuple[str, str]] = {
     # 实现一套藏文排序键，目前没做，README 的已知限制里写明了。
     "tibetan_asc": ("藏文（按 Unicode 码点）", "tibetan ASC, id ASC"),
 }
-DEFAULT_SORT = "created_desc"
+DEFAULT_SORT = "manual"
 
 
 def list_words(
@@ -358,8 +388,9 @@ def count_words() -> int:
 #: 新增词条的 SQL。导入时也要用同一份，保证两条写入路径完全一致。
 _WORD_INSERT_SQL = """
     INSERT INTO words
-        (tibetan, components, meaning, note, tags, auto_join, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (tibetan, components, meaning, note, tags, auto_join,
+         created_at, updated_at, position)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 
@@ -385,13 +416,20 @@ def _insert_values(word: Word) -> tuple:
         1 if word.auto_join else 0,
         word.created_at,
         word.updated_at,
+        int(word.position or 0),
     )
 
 
 def create_word(word: Word) -> int:
-    """新增词条，返回新记录的 id。"""
+    """新增词条，返回新记录的 id。
+
+    新词默认排在**最后**（``position = 当前最大值 + 1``）。
+    """
     _prepare_word(word)
     with get_connection() as conn:
+        if not word.position:
+            row = conn.execute("SELECT COALESCE(MAX(position), 0) FROM words").fetchone()
+            word.position = int(row[0]) + 1
         cursor = conn.execute(_WORD_INSERT_SQL, _insert_values(word))
         conn.commit()
         return int(cursor.lastrowid)
@@ -445,6 +483,64 @@ def delete_all_words() -> int:
         return cursor.rowcount
 
 
+def recompose_all() -> list[tuple[int, str, str]]:
+    """按当前合成规则重算所有词条的藏文，返回发生变化的那几条。
+
+    每条记录都存着组件，藏文是从组件合成出来的。合成规则一旦变化
+    （比如词尾标点规则），旧记录里的藏文就和规则对不上了——这里一次性重算。
+
+    只处理**有组件**的记录：没有组件的词条是用户手输的文本，合成不出来，保持原样。
+    返回 ``[(id, 旧藏文, 新藏文), ...]``，方便调用方打报告。
+    """
+    changed: list[tuple[int, str, str]] = []
+    with get_connection() as conn:
+        rows = conn.execute("SELECT id, tibetan, components FROM words").fetchall()
+        updates: list[tuple[str, int]] = []
+        for row in rows:
+            components = WordComponents.from_json(row["components"] or "{}")
+            if not components.meaningful_syllables():
+                continue
+            new_text = compose_word(components)
+            if new_text and new_text != row["tibetan"]:
+                changed.append((int(row["id"]), row["tibetan"], new_text))
+                updates.append((new_text, int(row["id"])))
+        if updates:
+            conn.executemany("UPDATE words SET tibetan = ? WHERE id = ?", updates)
+            conn.commit()
+    return changed
+
+
+def move_word(word_id: object, direction: str, q: str = "", tag: str = "") -> bool:
+    """在当前筛选结果内把词条上移 / 下移一位。
+
+    交换的是两条记录的 ``position``，所以序号不连续也不影响别的词。
+    ``q`` / ``tag`` 要和列表页当前筛选一致——用户看到的「上一条」才是要换的那条。
+
+    返回是否真的动了：找不到、方向非法、已经在顶/底都返回 False。
+    """
+    safe_id = valid_id(word_id)
+    if safe_id is None or direction not in ("up", "down"):
+        return False
+
+    ordered = list_words(q=q, tag=tag, sort="manual")
+    index = next((i for i, w in enumerate(ordered) if w.id == safe_id), None)
+    if index is None:
+        return False
+
+    neighbour = index - 1 if direction == "up" else index + 1
+    if not 0 <= neighbour < len(ordered):
+        return False
+
+    me, other = ordered[index], ordered[neighbour]
+    with get_connection() as conn:
+        conn.executemany(
+            "UPDATE words SET position = ? WHERE id = ?",
+            [(other.position, me.id), (me.position, other.id)],
+        )
+        conn.commit()
+    return True
+
+
 # ---------------------------------------------------------------------------
 # 备份：导出 / 导入 JSON
 # ---------------------------------------------------------------------------
@@ -468,9 +564,11 @@ def _word_to_backup(word: Word) -> dict[str, Any]:
     顺带把 v1 的字符串下加字归一成 v2 的列表写法。
     """
     data = word.to_dict()
-    # 备份里不带 id：id 是本地数据库的自增值，导入时会被重新分配，
-    # 写进备份只会让人误以为能靠它找回原编号。去掉后备份与示例数据完全同形。
+    # 备份里不带 id / position：前者是数据库自增值，后者是本地视图状态。
+    # 导入时都按文件顺序重新编号，写进备份只会让人误以为能靠它还原顺序。
+    # 去掉后备份与示例数据完全同形（test_backup_and_sample_file_share_one_format 盯着）。
     data.pop("id", None)
+    data.pop("position", None)
 
     record = WordComponents.from_json(word.components)
     if not record.meaningful_syllables():
@@ -503,8 +601,12 @@ def _raw_components_dict(raw: Any) -> dict[str, Any]:
 
 
 def export_payload() -> dict[str, Any]:
-    """生成备份用的 JSON 结构。"""
-    words = list_words(sort="created_asc")
+    """生成备份用的 JSON 结构。
+
+    顺序用手工顺序：导出的词库 JSON 会直接灌进记忆工具和 Word，
+    用户在列表页调过的顺序应当原样带过去。
+    """
+    words = list_words(sort="manual")
     return {
         "format": BACKUP_FORMAT,
         "version": BACKUP_VERSION,
@@ -639,6 +741,12 @@ def import_payload(payload: Any, mode: str = "append") -> dict[str, int]:
     with get_connection() as conn:
         removed = conn.execute("DELETE FROM words").rowcount if mode == "replace" else 0
         if to_insert:
+            # position 按文件顺序重新编号：replace 模式从 1 开始，
+            # append 模式接在现有最后一条之后（MAX 在 DELETE 之后取，replace 时自然是 0）
+            row = conn.execute("SELECT COALESCE(MAX(position), 0) FROM words").fetchone()
+            base = int(row[0])
+            for offset, word in enumerate(to_insert, start=1):
+                word.position = base + offset
             conn.executemany(_WORD_INSERT_SQL, [_insert_values(w) for w in to_insert])
         conn.commit()
 

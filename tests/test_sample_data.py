@@ -13,7 +13,13 @@ import json
 import pytest
 
 import models
-from tibetan import WordComponents, compose_word, validate_word
+from tibetan import (
+    WordComponents,
+    append_trailing_shad,
+    compose_word,
+    strip_trailing_shad,
+    validate_word,
+)
 
 
 def test_sample_file_is_valid_json():
@@ -79,11 +85,15 @@ def test_sample_entries_cover_all_component_kinds(sample_words):
     }
 
 
-def test_sample_entries_all_end_with_shad(sample_words):
-    """示例数据是词汇表，每个词条都应当带词尾 ཤད（།）。"""
+def test_sample_entries_use_the_rule_appropriate_ending(sample_words):
+    """词尾标点按词尾字母定：ཀ/ག 不加、ང 加 ་།、其余加 །。
+
+    用「剥掉再按规则补回去应当还原」来表达，比逐个分支断言更不容易写错。
+    """
     for word in sample_words:
-        assert word["tibetan"].endswith("།"), word["tibetan"]
-        assert word["components"]["trailing_shad"] is True, word["tibetan"]
+        text = word["tibetan"]
+        assert append_trailing_shad(strip_trailing_shad(text)) == text, text
+        assert word["components"]["trailing_shad"] is True, text
 
 
 @pytest.mark.parametrize("expected", ["བསྒྲུབས", "ཉི་མ", "རྒྱལ", "སེམས", "དྲྭ་བ", "གྲྭ", "ཕྱྭ"])

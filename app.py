@@ -36,7 +36,7 @@ from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.responses import (
@@ -72,10 +72,12 @@ from tibetan import (
     MAX_SUBJOINED,
     SHAD,
     WordComponents,
+    append_trailing_shad,
     build_component_options,
     compose_word,
     normalize_text,
     preview,
+    strip_trailing_shad,
     validate_word,
 )
 
@@ -148,6 +150,8 @@ def render(request: Request, template: str, **context: Any) -> HTMLResponse:
     context.setdefault("request", request)
     context.setdefault("component_labels", COMPONENT_LABELS)
     context.setdefault("total_count", models.count_words())
+    # 「从该词条新增」时预先填好的标签；编辑页和普通新增页都没有
+    context.setdefault("copy_tags", "")
     # 编辑页的 JS 用它来决定下加字最多能叠几层
     context.setdefault("max_subjoined", MAX_SUBJOINED)
     return templates.TemplateResponse(request, template, context)
@@ -194,7 +198,9 @@ async def word_from_request(request: Request) -> tuple[models.Word, list]:
         # 先去掉结尾已有的 ། 再补一个，保证反复保存不会越加越多。
         typed = normalize_text(str(form.get("tibetan") or "").strip())
         if typed and components.trailing_shad:
-            typed = typed.rstrip(SHAD) + SHAD
+            # 先剥掉已有的 །（连同 ང 后面那个 ་），再按词尾字母重新收尾。
+            # 和 compose_word 用的是同一个函数，两条保存路径结果才一致。
+            typed = append_trailing_shad(strip_trailing_shad(typed))
         tibetan = typed
 
     if not tibetan:
@@ -238,15 +244,39 @@ def index(
 
 
 @app.get("/words/new", response_class=HTMLResponse)
-def new_word(request: Request):
-    """新增词条页。默认给一张空音节卡片。"""
-    empty = WordComponents(syllables=[], auto_join=True)
+def new_word(request: Request, copy_from: str | None = None):
+    """新增词条页。
+
+    带 ``copy_from=<id>`` 时以那条词条为**模板**：音节组件原样带过来，
+    标签也带过来（同一课的词通常同标签）；释义和备注留空——新词的意思不一样。
+    保存走的仍然是新增（POST /words），不会覆盖源词条。
+    """
+    initial = WordComponents(syllables=[], auto_join=True).to_dict()
+    copy_tags = ""
+
+    if copy_from is not None:
+        source_id = models.valid_id(copy_from)
+        source = models.get_word(source_id) if source_id is not None else None
+        if source is None:
+            return redirect("/", msg="找不到要复制的词条。", level="warn")
+        if not source.has_components:
+            # 新增页没有「直接输入藏文」的框（那是编辑页给老数据用的回退），
+            # 复制过去只会得到一张空表单，提交必然被拒。不如直接说清楚。
+            return redirect(
+                "/",
+                msg=f"「{source.tibetan}」没有音节组件，无法作为新词条的模板。",
+                level="warn",
+            )
+        initial = source.word_components.to_dict()
+        copy_tags = source.tags_text
+
     return render(
         request,
         "edit.html",
         mode="new",
         word=None,
-        initial=empty.to_dict(),
+        initial=initial,
+        copy_tags=copy_tags,
         options=build_component_options(),
         saved=False,
     )
@@ -342,6 +372,29 @@ def delete_word(word_id: int):
     return redirect("/", msg=f"已删除「{word.tibetan}」")
 
 
+@app.post("/words/{word_id}/move")
+async def move_word(word_id: int, request: Request):
+    """把词条上移 / 下移一位。
+
+    表单里的 ``q`` / ``tag`` 是列表页当前的筛选条件——换位在**当前可见的列表**里进行，
+    用户看到的上一条才是它要交换的那条。
+    """
+    form = await request.form()
+    direction = str(form.get("direction") or "")
+    q = str(form.get("q") or "")
+    tag = str(form.get("tag") or "")
+
+    word = models.get_word(word_id)
+    if word is None:
+        return redirect("/", msg=f"找不到编号为 {word_id} 的词条。", level="warn")
+
+    models.move_word(word_id, direction, q=q, tag=tag)
+    # 回到同一份筛选结果，别把用户的搜索条件弄丢
+    query = {"q": q, "tag": tag}
+    target = "/?" + urlencode({k: v for k, v in query.items() if v}) if (q or tag) else "/"
+    return redirect(target)
+
+
 # ---------------------------------------------------------------------------
 # 实时预览 API
 # ---------------------------------------------------------------------------
@@ -372,22 +425,24 @@ def _collect_export_rows(
     tag: str,
     ids: str,
 ) -> list[models.Word]:
-    """按导出范围取出词条，并统一按「录入顺序」排好。
+    """按导出范围取出词条，并统一按**手工顺序**排好。
 
     顺序导出时保持这个顺序；乱序导出时再由 :func:`apply_order` 打乱。
+    用手工顺序而不是录入时间，是因为列表页可以用 ↑↓ 调整顺序，
+    用户调过的顺序应当原样带到 Word 里。
     """
     if scope == "selected":
         # parse_ids 会忽略非法项、去重，并挡掉超出 SQLite 整数范围的值，
         # 免得用户手改 URL 里的 ids 就能把接口打成 500
         rows = models.get_words_by_ids(models.parse_ids(ids))
-        # 手动勾选也统一回归录入顺序，保证两遍导出结果可比
-        rows.sort(key=lambda w: (w.created_at, w.id or 0))
+        # 手动勾选也统一回归手工顺序，保证两遍导出结果可比
+        rows.sort(key=lambda w: (w.position, w.id or 0))
         return rows
 
     if scope == "filtered":
-        return models.list_words(q=q, tag=tag, sort="created_asc")
+        return models.list_words(q=q, tag=tag, sort="manual")
 
-    return models.list_words(sort="created_asc")
+    return models.list_words(sort="manual")
 
 
 @app.get("/export", response_class=HTMLResponse)

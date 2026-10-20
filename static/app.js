@@ -80,20 +80,36 @@
     return state.syllables.every(syllableIsBlank);
   }
 
+  //: 这两个字母结尾的词语后面不写 །；ང 结尾要先写 ་ 再写 །。
+  //: 规则来源见 tibetan.py 的 append_trailing_shad，两边必须一致。
+  const SHAD_ABSENT_AFTER = ['ཀ', 'ག'];
+  const TSHEG_BEFORE_SHAD_AFTER = ['ང'];
+
+  /** 按词尾字母决定怎么收尾（tibetan.append_trailing_shad 的镜像） */
+  function appendTrailingShad(text) {
+    if (!text) return text;
+    const last = text.charAt(text.length - 1);
+    if (SHAD_ABSENT_AFTER.indexOf(last) !== -1) return text;
+    if (TSHEG_BEFORE_SHAD_AFTER.indexOf(last) !== -1) return text + '་།';
+    return text + '།';
+  }
+
   /**
    * 没有音节组件的词条会有一个直接输入藏文的框；返回它当前应当被保存的文本。
    *
    * 这段文本服务端无法重新合成，所以「词尾加 །」的规则要两边各应用一次
    * （app.py 的 word_from_request 里是同一套逻辑，那边才是**权威**的，
    * 这里只是为了让预览和最终保存的结果一致）。
-   * 先去掉结尾已有的 ། 再补一个，反复保存不会越加越多。
+   * 先去掉结尾已有的 །（连同它前面的 ་）再按词尾重新收尾，反复保存不会越加越多。
    */
   function typedTibetan() {
     const box = document.getElementById('tibetan_text');
     if (!box) return '';
     const text = box.value.trim();
     if (!text) return '';
-    return trailingShadEl.checked ? text.replace(/།+$/, '') + '།' : text;
+    return trailingShadEl.checked
+      ? appendTrailingShad(text.replace(/་?།+$/, ''))
+      : text;
   }
 
   // ------------------------------------------------------------ 下加字叠层

@@ -45,7 +45,7 @@
           </label>
           <label class="checkbox-line" for="trailing_shad">
             <input type="checkbox" id="trailing_shad" name="trailing_shad" {% if initial.trailing_shad %}checked{% endif %}>
-            词尾加 <span class="tibetan-sm">།</span>（ཤད）
+            词尾按规则收尾（<span class="tibetan-sm">།</span> / <span class="tibetan-sm">་།</span> / 不加）
           </label>
         </div>
         <div class="hint">
@@ -53,8 +53,10 @@
           下加字可以叠多层：藏文里下加字之上通常只再跟一个 <span class="tibetan-sm">ྭ</span>（wa-zur），
           如 <span class="tibetan-sm">གྲྭ</span>、<span class="tibetan-sm">དྲྭ་བ</span>。
           <br>
-          <span class="tibetan-sm">།</span>（ཤད）原本是句末标点，单个词语并不需要，
-          但词汇表里习惯写成 <span class="tibetan-sm">ཀ། ཁ། ག།</span>，所以默认给每个词都加上。
+          词尾收尾按藏文规则来：<span class="tibetan-sm">ཀ</span> / <span class="tibetan-sm">ག</span>
+          结尾<strong>不加</strong> <span class="tibetan-sm">།</span>；<span class="tibetan-sm">ང</span>
+          结尾先加 <span class="tibetan-sm">་</span> 再加 <span class="tibetan-sm">།</span>；
+          其余直接加 <span class="tibetan-sm">།</span>。开关默认打开，关掉就什么都不加。
           两个开关都跟着词条保存，下次编辑会自动回填。
         </div>
       </div>
@@ -67,7 +69,8 @@
         </div>
         <div class="form-row">
           <label for="tags">标签</label>
-          <input type="text" id="tags" name="tags" value="{{ word.tags_text if word else '' }}"
+          <input type="text" id="tags" name="tags"
+                 value="{{ word.tags_text if word else copy_tags }}"
                  placeholder="多个标签用逗号或顿号分隔，例如：名词, 地名">
         </div>
         <div class="form-row">
@@ -90,6 +93,11 @@
         <div class="form-actions">
           <button type="submit" class="btn btn-primary" id="btn-save">保存词条</button>
           <a class="btn" href="/">取消</a>
+          {% if mode == 'edit' and word %}
+            {# 以当前词条为模板新建一条：结构照搬，释义/备注留空。不会覆盖原词条。 #}
+            <a class="btn" href="/words/new?copy_from={{ word.id }}"
+               title="以这个词的音节结构为模板，新建一条">从该词汇新增</a>
+          {% endif %}
         </div>
         {% if saved %}
           <div class="hint" style="color: var(--warn);">该词条存在组合提示（见上方），已照常保存。</div>

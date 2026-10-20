@@ -36,6 +36,8 @@ from tibetan import (
     Syllable,
     WordComponents,
     allowed_components,
+    append_trailing_shad,
+    strip_trailing_shad,
     compose_syllable,
     compose_word,
     normalize_subjoined,
@@ -138,14 +140,41 @@ def test_shad_constant_is_the_right_character():
 
 
 def test_trailing_shad_defaults_on():
-    """词汇表里的词头习惯带 །，所以默认打开。"""
+    """词汇表里的词头习惯带 །，所以默认打开。
+
+    注意基字用 མ 而不是 ཀ：ཀ / ག 结尾按规则本来就不加 །，
+    用它们测不出开关的效果。
+    """
     assert WordComponents().trailing_shad is True
-    assert compose_word(WordComponents(syllables=[Syllable(root="ཀ")])) == "ཀ།"
+    assert compose_word(WordComponents(syllables=[Syllable(root="མ")])) == "མ།"
+
+
+def test_trailing_shad_follows_the_last_letter():
+    """词尾标点由**词尾字母**决定，不是一律加 །。"""
+    def word(root, **kwargs):
+        return compose_word(WordComponents(syllables=[Syllable(root=root, **kwargs)]))
+
+    assert word("ཀ") == "ཀ"          # ཀ 结尾：不加
+    assert word("ག") == "ག"          # ག 结尾：不加
+    assert word("ང") == "ང་།"        # ང 结尾：先 ་ 再 །
+    assert word("མ") == "མ།"         # 其余：直接 །
+    assert word("ས") == "ས།"
+    # 后加字是 ག 的也一样
+    assert word("ཀ", vowel="ི", suffix="ག") == "ཀིག"
+    assert word("ཐ", suffix="ང") == "ཐང་།"
 
 
 def test_trailing_shad_can_be_turned_off():
-    components = WordComponents(syllables=[Syllable(root="ཀ")], trailing_shad=False)
-    assert compose_word(components) == "ཀ"
+    components = WordComponents(syllables=[Syllable(root="མ")], trailing_shad=False)
+    assert compose_word(components) == "མ"
+
+
+def test_append_trailing_shad_is_idempotent_after_stripping():
+    """先剥再补，反复保存不会越加越多（ང 结尾尤其要注意）。"""
+    for text in ("མ།", "ང་།", "ཀ"):
+        once = append_trailing_shad(strip_trailing_shad(text))
+        twice = append_trailing_shad(strip_trailing_shad(once))
+        assert once == twice, text
 
 
 def test_shad_goes_after_everything_else():
@@ -169,7 +198,7 @@ def test_shad_only_added_when_there_is_a_word():
 def test_shad_survives_json_roundtrip():
     for flagged in (True, False):
         original = WordComponents(
-            syllables=[Syllable(root="ཀ")], trailing_shad=flagged
+            syllables=[Syllable(root="མ")], trailing_shad=flagged
         )
         restored = WordComponents.from_json(original.to_json())
         assert restored.trailing_shad is flagged
@@ -178,9 +207,9 @@ def test_shad_survives_json_roundtrip():
 
 def test_trailing_shad_is_not_a_component():
     """། 是排版开关，不是音节组件——校验时不该因为它报任何错。"""
-    word = compose_word(WordComponents(syllables=[Syllable(root="ཀ")]))
-    assert word == "ཀ།"
-    issues = validate_word(WordComponents(syllables=[Syllable(root="ཀ")]))
+    word = compose_word(WordComponents(syllables=[Syllable(root="མ")]))
+    assert word == "མ།"
+    issues = validate_word(WordComponents(syllables=[Syllable(root="མ")]))
     assert issues == []
 
 

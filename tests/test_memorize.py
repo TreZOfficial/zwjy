@@ -44,7 +44,7 @@ dukpy = pytest.importorskip("dukpy", reason="跑 JS 需要 dukpy（pip install d
 
 import js_harness as H  # noqa: E402
 
-WORD_BANK_JSON = BASE_DIR / "data" / "词库1016.json"
+WORD_BANK_JSON = BASE_DIR / "data" / "词库1020.json"
 
 # 真实词库的条数不写死在这里：换词库（期中 -> 期末）时不用回来改测试。
 # 真正要钉死的是「页面里嵌的 == 这份 JSON」，条数只是顺带核对一下。

@@ -194,6 +194,47 @@ input.tibetan-input {
 
 /* 排序按钮只放一个箭头，别占太宽；到顶/到底时置灰 */
 .btn-move { padding: 7px 8px; min-width: 30px; justify-content: center; }
+
+/* 每行的「创建」下拉（原生 <details>，不需要 JS） */
+.create-menu { display: inline-block; position: relative; }
+.create-menu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.create-menu > summary::-webkit-details-marker { display: none; }
+.create-menu[open] > summary { border-color: var(--accent-soft); color: var(--accent); }
+.create-menu .menu {
+  position: absolute;
+  right: 0;
+  z-index: 20;
+  min-width: 220px;
+  margin-top: 4px;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
+  text-align: left;
+}
+.create-menu .menu a {
+  display: block;
+  padding: 7px 10px;
+  border-radius: 6px;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 13.5px;
+  white-space: nowrap;
+}
+.create-menu .menu a:hover { background: var(--accent-soft); color: var(--accent); }
+.create-menu .menu small {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-soft);
+  font-size: 11.5px;
+}
+
+/* 「上移/下移」在无 JS 时会靠 #word-<id> 锚点定位，给它留点上方余量 */
+table.words tr[id] { scroll-margin-top: 90px; }
 .btn:disabled,
 .btn[disabled] {
   opacity: .38;

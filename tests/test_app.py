@@ -362,6 +362,56 @@ def test_move_word_route(client):
     assert [w.id for w in models.list_words(sort="manual")] == [second.id, first.id]
 
 
+def test_list_page_has_the_three_create_actions(client):
+    client.post("/words", data=form_payload())
+    word = models.list_words()[0]
+    page = client.get("/").text
+
+    assert "依次创建" in page
+    assert "此后创建" in page
+    assert "依此且此后创建" in page
+    assert f"/words/new?copy_from={word.id}" in page
+    assert f"/words/new?after={word.id}" in page
+    assert f"/words/new?copy_from={word.id}&after={word.id}" in page
+
+
+def test_new_word_page_carries_the_after_target(client):
+    client.post("/words", data=form_payload())
+    word = models.list_words()[0]
+
+    page = client.get(f"/words/new?after={word.id}")
+    assert page.status_code == 200
+    assert f'name="after" value="{word.id}"' in page.text
+
+
+def test_create_after_inserts_below_the_target(client):
+    """「此后创建」提交后，新词排在目标词条的**下一条**，而不是末尾。"""
+    client.post("/words", data=form_payload(meaning="一"))
+    client.post("/words", data=form_payload(meaning="二"))
+    first, second = models.list_words(sort="manual")
+
+    client.post("/words", data=form_payload(
+        meaning="一点五",
+        components_json=components_json({"root": "ཁ"}),
+        after=str(first.id),
+    ))
+
+    assert [w.meaning for w in models.list_words(sort="manual")] == ["一", "一点五", "二"]
+
+
+def test_create_with_a_stale_after_target_falls_back_to_the_end(client):
+    """目标词条在提交前被删掉了：不报错，按默认的「排最后」处理。"""
+    client.post("/words", data=form_payload(meaning="一"))
+    first = models.list_words()[0]
+
+    response = client.post("/words", data=form_payload(
+        meaning="二", components_json=components_json({"root": "ཁ"}),
+        after=str(first.id + 999),
+    ))
+    assert response.status_code == 200      # 跟随重定向后回到列表
+    assert [w.meaning for w in models.list_words(sort="manual")] == ["一", "二"]
+
+
 def test_move_route_keeps_the_current_filters(client):
     client.post("/words", data=form_payload(meaning="一", tags="甲"))
     word = models.list_words()[0]

@@ -266,7 +266,9 @@ SORT_OPTIONS: dict[str, tuple[str, str]] = {
     # 实现一套藏文排序键，目前没做，README 的已知限制里写明了。
     "tibetan_asc": ("藏文（按 Unicode 码点）", "tibetan ASC, id ASC"),
 }
-DEFAULT_SORT = "manual"
+#: 默认按「最新录入在最上面」。手工顺序是可选项，不是默认视图——
+#: 录完一个词要能立刻看到它，否则还得滚到列表底部去找，完全违背直觉。
+DEFAULT_SORT = "created_desc"
 
 
 def list_words(
@@ -508,6 +510,36 @@ def recompose_all() -> list[tuple[int, str, str]]:
             conn.executemany("UPDATE words SET tibetan = ? WHERE id = ?", updates)
             conn.commit()
     return changed
+
+
+def place_after(word_id: object, target_id: object) -> bool:
+    """把词条挪到 ``target_id`` 的下一条（手工顺序）。
+
+    做法：把 target 之后的所有词条 position +1，空出一格，再放进去。
+    不重排整张表，也不动其它字段。
+    """
+    safe_id = valid_id(word_id)
+    safe_target = valid_id(target_id)
+    if safe_id is None or safe_target is None or safe_id == safe_target:
+        return False
+
+    with get_connection() as conn:
+        target = conn.execute(
+            "SELECT position FROM words WHERE id = ?", (safe_target,)
+        ).fetchone()
+        exists = conn.execute("SELECT 1 FROM words WHERE id = ?", (safe_id,)).fetchone()
+        if target is None or exists is None:
+            return False
+
+        conn.execute(
+            "UPDATE words SET position = position + 1 WHERE position > ?",
+            (target[0],),
+        )
+        conn.execute(
+            "UPDATE words SET position = ? WHERE id = ?", (target[0] + 1, safe_id)
+        )
+        conn.commit()
+    return True
 
 
 def move_word(word_id: object, direction: str, q: str = "", tag: str = "") -> bool:

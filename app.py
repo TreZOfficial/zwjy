@@ -150,8 +150,10 @@ def render(request: Request, template: str, **context: Any) -> HTMLResponse:
     context.setdefault("request", request)
     context.setdefault("component_labels", COMPONENT_LABELS)
     context.setdefault("total_count", models.count_words())
-    # 「从该词条新增」时预先填好的标签；编辑页和普通新增页都没有
+    # 「依此创建」时预先填好的标签；编辑页和普通新增页都没有
     context.setdefault("copy_tags", "")
+    # 「此后创建」的目标词条 id：提交时把新词插到它后面
+    context.setdefault("after_id", "")
     # 编辑页的 JS 用它来决定下加字最多能叠几层
     context.setdefault("max_subjoined", MAX_SUBJOINED)
     return templates.TemplateResponse(request, template, context)
@@ -244,13 +246,24 @@ def index(
 
 
 @app.get("/words/new", response_class=HTMLResponse)
-def new_word(request: Request, copy_from: str | None = None):
+def new_word(
+    request: Request,
+    copy_from: str | None = None,
+    after: str | None = None,
+):
     """新增词条页。
 
-    带 ``copy_from=<id>`` 时以那条词条为**模板**：音节组件原样带过来，
-    标签也带过来（同一课的词通常同标签）；释义和备注留空——新词的意思不一样。
+    两个可选参数可以单独用，也可以一起用：
+
+    * ``copy_from=<id>``：以那条词条为**模板**——音节组件原样带过来，
+      标签也带过来（同一课的词通常同标签）；释义和备注留空。
+    * ``after=<id>``：提交后把新词**插到那条词条的后面**（手工顺序），
+      而不是默认的排到最后。参数会随表单带回，由 POST 处理。
+
     保存走的仍然是新增（POST /words），不会覆盖源词条。
     """
+    if after is not None and models.valid_id(after) is None:
+        after = None
     initial = WordComponents(syllables=[], auto_join=True).to_dict()
     copy_tags = ""
 
@@ -277,6 +290,7 @@ def new_word(request: Request, copy_from: str | None = None):
         word=None,
         initial=initial,
         copy_tags=copy_tags,
+        after_id=after or "",
         options=build_component_options(),
         saved=False,
     )
@@ -284,8 +298,15 @@ def new_word(request: Request, copy_from: str | None = None):
 
 @app.post("/words")
 async def create_word(request: Request):
+    form = await request.form()
     word, issues = await word_from_request(request)
     word_id = models.create_word(word)
+
+    # 「此后创建」：表单里带着目标词条 id，就把它插到那条后面。
+    # 目标词条可能已经被删掉了，place_after 会返回 False，此时保持默认的排最后。
+    after_id = models.valid_id(form.get("after"))
+    if after_id is not None:
+        models.place_after(word_id, after_id)
 
     # 只有「无法合成」这类硬错误才把用户带回编辑页。组合提示（warning）
     # 不拦保存，也就没道理不让人回列表——前端提交前已经弹过一次确认，
@@ -389,9 +410,13 @@ async def move_word(word_id: int, request: Request):
         return redirect("/", msg=f"找不到编号为 {word_id} 的词条。", level="warn")
 
     models.move_word(word_id, direction, q=q, tag=tag)
-    # 回到同一份筛选结果，别把用户的搜索条件弄丢
-    query = {"q": q, "tag": tag}
-    target = "/?" + urlencode({k: v for k, v in query.items() if v}) if (q or tag) else "/"
+
+    # 回到同一份筛选结果，别把用户的搜索条件弄丢。
+    # 末尾带上 #word-<id>：没有 JS 时整页会重新加载，靠这个锚点停在这条词附近，
+    # 而不是被甩回页面顶部。
+    # （有 JS 时走的是 fetch，根本不刷新页面——见 templates/index.html 的脚本。）
+    params = urlencode({k: v for k, v in {"q": q, "tag": tag}.items() if v})
+    target = ("/?" + params if params else "/") + f"#word-{word_id}"
     return redirect(target)
 
 

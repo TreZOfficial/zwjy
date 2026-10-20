@@ -521,6 +521,18 @@ def test_backup_and_sample_file_share_one_format(sample_words):
 # ---------------------------------------------------------------------------
 # 手工排序
 # ---------------------------------------------------------------------------
+def test_default_sort_is_newest_first():
+    """默认视图是「最新录入在最上面」。
+
+    手工顺序是可选项，不是默认视图——录完一个词要能立刻看到它，
+    否则还得滚到列表底部去找。
+    """
+    old = models.create_word(make_word(meaning="旧"))
+    new = models.create_word(make_word(meaning="新"))
+    assert models.DEFAULT_SORT == "created_desc"
+    assert [w.id for w in models.list_words()] == [new, old]
+
+
 def test_new_words_are_appended_to_the_end():
     first = models.create_word(make_word(meaning="一"))
     second = models.create_word(make_word(meaning="二"))
@@ -569,6 +581,27 @@ def test_move_word_only_swaps_within_the_current_filter():
     assert [w.id for w in models.list_words(tag="甲", sort="manual")] == [three, one]
     # 隐藏的那条位置没被动过
     assert [w.id for w in models.list_words(sort="manual")] == [three, hidden, one]
+
+
+def test_place_after_inserts_right_after_the_target():
+    """「此后创建」用：把一条挪到目标的下一条，其余顺序不变。"""
+    a = models.create_word(make_word(meaning="一"))
+    b = models.create_word(make_word(meaning="二"))
+    c = models.create_word(make_word(meaning="三"))
+    d = models.create_word(make_word(meaning="四"))
+
+    assert models.place_after(d, a) is True
+    assert [w.id for w in models.list_words(sort="manual")] == [a, d, b, c]
+
+    # 挪到最后一个之后
+    assert models.place_after(a, c) is True
+    assert [w.id for w in models.list_words(sort="manual")] == [d, b, c, a]
+
+    # 目标不存在 / 自己挪到自己 → 不动
+    assert models.place_after(a, 999999) is False
+    assert models.place_after(999999, b) is False
+    assert models.place_after(a, a) is False
+    assert [w.id for w in models.list_words(sort="manual")] == [d, b, c, a]
 
 
 def test_backup_does_not_leak_position():

@@ -13,6 +13,8 @@
   {# 提交时由 JS 填入：完整的组件 JSON，以及合成后的藏文（服务端会重新合成一次） #}
   <input type="hidden" name="components_json" id="components_json">
   <input type="hidden" name="tibetan" id="tibetan_hidden">
+  {# 「此后创建」：带着目标词条 id，服务端会把新词插到它后面 #}
+  <input type="hidden" name="after" value="{{ after_id }}">
 
   <div class="layout-edit">
     <!-- ------------------------------------------------ 左：音节卡片 -->

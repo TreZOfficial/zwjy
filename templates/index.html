@@ -79,7 +79,8 @@
         </thead>
         <tbody>
           {% for word in words %}
-            <tr>
+            {# id 供「上移/下移」后的锚点定位（没有 JS 时整页刷新也不会跳回顶部） #}
+            <tr id="word-{{ word.id }}">
               <td class="col-check">
                 <input type="checkbox" class="row-check" value="{{ word.id }}">
               </td>
@@ -104,7 +105,7 @@
                   <input type="hidden" name="direction" value="up">
                   <input type="hidden" name="q" value="{{ q }}">
                   <input type="hidden" name="tag" value="{{ tag }}">
-                  <button type="submit" class="btn btn-sm btn-move"
+                  <button type="submit" class="btn btn-sm btn-move" data-move="up"
                           title="{{ '上移' if sort == 'manual' else '切到「手工顺序」才能调整' }}"
                           {% if loop.first or sort != 'manual' %}disabled{% endif %}>↑</button>
                 </form>
@@ -112,13 +113,27 @@
                   <input type="hidden" name="direction" value="down">
                   <input type="hidden" name="q" value="{{ q }}">
                   <input type="hidden" name="tag" value="{{ tag }}">
-                  <button type="submit" class="btn btn-sm btn-move"
+                  <button type="submit" class="btn btn-sm btn-move" data-move="down"
                           title="{{ '下移' if sort == 'manual' else '切到「手工顺序」才能调整' }}"
                           {% if loop.last or sort != 'manual' %}disabled{% endif %}>↓</button>
                 </form>
                 <a class="btn btn-sm" href="/words/{{ word.id }}/edit">编辑</a>
-                <a class="btn btn-sm" href="/words/new?copy_from={{ word.id }}"
-                   title="以这个词的音节结构为模板，新建一条">从该词汇新增</a>
+                {# 创建菜单：三个入口的区别只有两条轴——照不照搬结构、排在哪儿。
+                   <details> 是原生下拉，不依赖 JS。 #}
+                <details class="create-menu">
+                  <summary class="btn btn-sm">创建 ▾</summary>
+                  <div class="menu">
+                    <a href="/words/new?copy_from={{ word.id }}">
+                      依次创建<small>照搬结构，排到最后</small>
+                    </a>
+                    <a href="/words/new?after={{ word.id }}">
+                      此后创建<small>空白新词，插在这条之后</small>
+                    </a>
+                    <a href="/words/new?copy_from={{ word.id }}&after={{ word.id }}">
+                      依此且此后创建<small>照搬结构，插在这条之后</small>
+                    </a>
+                  </div>
+                </details>
                 <form method="post" action="/words/{{ word.id }}/delete" style="display:inline"
                       data-confirm="确定删除「{{ word.tibetan }}」吗？">
                   <button type="submit" class="btn btn-sm btn-danger">删除</button>
@@ -206,6 +221,54 @@
         return;
       }
       window.location.href = '/export?scope=selected&ids=' + encodeURIComponent(ids.join(','));
+    });
+  }
+
+  // 「上移 / 下移」不刷新整页。
+  //
+  // 原先点一下就是一次表单提交 + 重定向，页面滚回顶部——重排列表中间某个词时
+  // 得反复往下滚。现在改成 fetch 提交，拿到 2xx 后直接把相邻两行在 DOM 里换过来，
+  // 滚动位置保持不动。服务端仍然是权威（它交换的是 position），前端只是同步结果。
+  // 没有 JS 时表单照常提交，服务端会重定向到 #word-<id> 锚点，也不会跳回顶部。
+  const wordsBody = document.querySelector('table.words tbody');
+  if (wordsBody) {
+    wordsBody.addEventListener('submit', (event) => {
+      const form = event.target;
+      if (!form.action || !form.action.endsWith('/move')) return;
+
+      event.preventDefault();
+      const row = form.closest('tr');
+      const direction = form.querySelector('[name="direction"]').value;
+      const neighbour = direction === 'up' ? row.previousElementSibling : row.nextElementSibling;
+      if (!neighbour) return;
+
+      const buttons = row.querySelectorAll('button[data-move]');
+      buttons.forEach(btn => { btn.disabled = true; });
+
+      fetch(form.action, { method: 'POST', body: new FormData(form) })
+        .then((response) => {
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          // 把两行换过来：上移就把自己插到上一条前面，下移就把下一条插到自己前面
+          if (direction === 'up') wordsBody.insertBefore(row, neighbour);
+          else wordsBody.insertBefore(neighbour, row);
+          syncMoveButtons();
+        })
+        .catch((error) => {
+          syncMoveButtons();
+          alert('调整顺序失败：' + error.message);
+        });
+    });
+  }
+
+  /** 重算首末行的 ↑ / ↓ 置灰状态 */
+  function syncMoveButtons() {
+    if (!wordsBody) return;
+    const rows = Array.from(wordsBody.querySelectorAll('tr'));
+    rows.forEach((row, index) => {
+      const up = row.querySelector('button[data-move="up"]');
+      const down = row.querySelector('button[data-move="down"]');
+      if (up) up.disabled = index === 0;
+      if (down) down.disabled = index === rows.length - 1;
     });
   }
 </script>

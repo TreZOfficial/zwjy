@@ -211,10 +211,18 @@ def test_tibetan_runs_are_not_bold():
 
 
 def test_tibetan_default_size_is_large_enough_to_print():
-    """默认字号要比中文正文大不少，否则打印出来看不清。"""
+    """默认字号要比中文正文大一些，但别大到挤掉行数。
+
+    16 磅是最早做分栏排版时的值；中途调到 20 磅（当时还加了粗），
+    去掉加粗之后 20 磅反而偏大，实际打印验证后默认退回 16 磅。
+    """
     options = ExportOptions()
-    assert options.tibetan_size_pt == DEFAULT_TIBETAN_SIZE == 20.0
-    assert options.tibetan_size_pt >= options.meaning_size_pt + 6
+    assert options.tibetan_size_pt == DEFAULT_TIBETAN_SIZE == 16.0
+    # 仍在可选项里，用户嫌小可以调大
+    assert DEFAULT_TIBETAN_SIZE in TIBETAN_SIZE_CHOICES
+    # 比中文正文大即可。早先这里要求「至少大 6 磅」，但那是按字形比例推的；
+    # 实际打印验证下来 16 磅最合适，所以只守住「更大」这条底线。
+    assert options.tibetan_size_pt > options.meaning_size_pt
 
 
 @pytest.mark.parametrize("size", TIBETAN_SIZE_CHOICES)

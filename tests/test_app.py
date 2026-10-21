@@ -866,15 +866,15 @@ def test_export_tibetan_size_reaches_the_document(client):
         "q": "", "tag": "", "ids": "", "seed": "", "layout": "columns",
         "column_count": "3", "landscape": "on",
     }
-    # 默认 20 磅 -> w:szCs = 40
-    assert tibetan_szcs(client.post("/export/docx", data=base)) == "40"
+    # 默认 16 磅 -> w:szCs = 32
+    assert tibetan_szcs(client.post("/export/docx", data=base)) == "32"
     # 显式选 28 磅 -> 56
     assert tibetan_szcs(client.post("/export/docx", data={**base, "tibetan_size": "28"})) == "56"
 
 
 @pytest.mark.parametrize("bad", ["", "abc", "999", "-3", "20.5"])
 def test_export_falls_back_on_invalid_tibetan_size(client, bad):
-    """字号被改成非法值时回落到默认的 20 磅，而不是报错。"""
+    """字号被改成非法值时回落到默认的 16 磅，而不是报错。"""
     client.post("/words", data=form_payload())
     response = client.post("/export/docx", data={
         "scope": "all", "order": "sequential", "title": "", "include_meaning": "on",
@@ -882,7 +882,7 @@ def test_export_falls_back_on_invalid_tibetan_size(client, bad):
         "column_count": "3", "landscape": "on", "tibetan_size": bad,
     })
     assert response.status_code == 200
-    assert tibetan_szcs(response) == "40"
+    assert tibetan_szcs(response) == "32"
 
 
 def test_export_falls_back_on_unknown_layout(client):

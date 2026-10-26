@@ -57,6 +57,8 @@ from export_docx import (
     LAYOUT_COLUMNS,
     LAYOUT_LABELS,
     LAYOUT_TABLE,
+    ORDER_DICT,
+    ORDER_LABELS,
     ORDER_RANDOM,
     ORDER_SEQUENTIAL,
     TIBETAN_SIZE_CHOICES,
@@ -542,9 +544,14 @@ async def export_docx(request: Request):
     if layout not in (LAYOUT_COLUMNS, LAYOUT_TABLE):
         layout = LAYOUT_COLUMNS
 
+    # 顺序 / 乱序 / 词典序；认不出来的值回落到顺序
+    order = field("order", ORDER_SEQUENTIAL)
+    if order not in ORDER_LABELS:
+        order = ORDER_SEQUENTIAL
+
     options = ExportOptions(
         title=field("title"),
-        order=ORDER_RANDOM if field("order", ORDER_SEQUENTIAL) == ORDER_RANDOM else ORDER_SEQUENTIAL,
+        order=order,
         include_meaning=bool(form.get("include_meaning")),
         hide_meaning=bool(form.get("hide_meaning")),
         seed=field("seed"),
@@ -565,7 +572,10 @@ async def export_docx(request: Request):
 
     data = export_to_bytes(rows, options)
     filename = build_filename(options)
-    ascii_fallback = "vocabulary_random.docx" if options.order == ORDER_RANDOM else "vocabulary_sequential.docx"
+    ascii_fallback = {
+        ORDER_RANDOM: "vocabulary_random.docx",
+        ORDER_DICT: "vocabulary_dictionary.docx",
+    }.get(options.order, "vocabulary_sequential.docx")
 
     headers = {
         # 同时给出 ASCII 回退名和 RFC 5987 的 UTF-8 名，兼容各种浏览器

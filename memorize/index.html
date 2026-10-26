@@ -14,7 +14,7 @@
   * 学习进度存在 localStorage（键名 zwjy-memory:v1）
 
   词库不要手改，用同目录的 update_wordbank.py 生成：
-      python update_wordbank.py 词库1020.json
+      python update_wordbank.py 期末词汇库.json
 
   注意：这段注释里刻意不写出 script 标签的字面样子，
   否则解析 HTML 的脚本（比如更新工具、测试脚手架）会把它当成真的标签。
@@ -447,7 +447,7 @@ h3 { font-size: 14px; margin: 16px 0 8px; color: var(--ink-soft); }
 </main>
 
 <!-- 词库（由 update_wordbank.py 生成，不要手改） -->
-<script type="application/json" id="wordbank" data-bank-id="词库1020" data-generated-at="2026-10-20 13:38" data-count="350">
+<script type="application/json" id="wordbank" data-bank-id="词库1020" data-generated-at="2026-10-26 22:00" data-count="350">
 [
  {
   "id": "5bf718ed62",
@@ -11227,23 +11227,98 @@ function appendSyllable() {
 /* --------------------------------------------------------------------------
    八、判分
    -------------------------------------------------------------------------- */
-function charDiff(userText, targetText) {
-  /* 逐字对比：返回两行 HTML —— 用户写的、和正确答案的。
-     长度不一致时以长的那边为准，缺少的位置标成「缺失」。 */
-  var u = userText, t = targetText;
-  var n = Math.max(u.length, t.length);
-  var uHtml = '', tHtml = '';
-  for (var i = 0; i < n; i++) {
-    var uc = u[i], tc = t[i];
-    if (uc === tc) {
-      uHtml += '<span class="c-ok">' + esc(uc) + '</span>';
-      tHtml += '<span class="c-ok">' + esc(tc) + '</span>';
-    } else {
-      if (uc) uHtml += '<span class="c-bad">' + esc(uc) + '</span>';
-      if (tc) tHtml += '<span class="c-miss">' + esc(tc) + '</span>';
-    }
+/* 判题反馈：按**组件**对比，不按字符位置。
+ *
+ * 早先是逐字比对（charDiff）。藏文是拼出来的：少写一个上加字，后面所有字符
+ * 都会整体错位——于是正确的部分被标红，而错位之后偶然对上的字符反而标绿，
+ * 反馈完全没法看。
+ *
+ * 网页里用户拼的答案和目标词都存着现成的组件（前加字/上加字/基字/…），
+ * 直接逐组件比较最准，也正好对应「哪一部分拼错了」。
+ *
+ * 颜色沿用原来的约定：
+ *   c-ok    对上了
+ *   c-bad   你写的这一部分不对
+ *   c-miss  答案里有、你没写（浅红）
+ */
+
+/** 一个音节里各组件用于比较的值。下加字保留成数组，按层比较。 */
+function componentValues(syl) {
+  syl = syl || {};
+  return {
+    prefix: syl.prefix || '',
+    superscript: syl.superscript || '',
+    root: syl.root || '',
+    subjoined: (syl.subjoined || []).slice(),
+    vowel: syl.vowel || '',
+    suffix: syl.suffix || '',
+    suffix2: syl.suffix2 || ''
+  };
+}
+
+/** 取某个部件在另一份组件里的对应值；对方没有这一层时返回 null。 */
+function counterpartValue(values, part) {
+  if (!values) return null;
+  if (part.key === 'subjoined') {
+    var list = values.subjoined || [];
+    return part.index < list.length ? list[part.index] : null;
   }
-  return { user: uHtml, target: tHtml };
+  return values[part.key] || '';
+}
+
+/** 把一个音节拆成「输出顺序」的若干部件，每段都是界面上可高亮的一片字符。 */
+function syllableParts(syl) {
+  if (!syl || !syl.root) return [];
+  var parts = [];
+
+  if (syl.prefix) parts.push({ key: 'prefix', text: syl.prefix });
+  if (syl.superscript) {
+    // 有上加字时，基字在输出里是下加形式，但比较用的仍是基字本身
+    parts.push({ key: 'superscript', text: syl.superscript });
+    parts.push({ key: 'root', text: SUBJOINED_MAP[syl.root] || syl.root });
+  } else {
+    parts.push({ key: 'root', text: syl.root });
+  }
+  (syl.subjoined || []).forEach(function (letter, index) {
+    parts.push({ key: 'subjoined', index: index, text: SUBJOINED_TAIL[letter] || letter });
+  });
+  if (syl.vowel) parts.push({ key: 'vowel', text: syl.vowel });
+  if (syl.suffix) parts.push({ key: 'suffix', text: syl.suffix });
+  if (syl.suffix2) parts.push({ key: 'suffix2', text: syl.suffix2 });
+  return parts;
+}
+
+/** 渲染一个音节，每个组件按「和对方是否一致」着色。 */
+function partsHtml(syl, otherValues, okClass, badClass) {
+  var values = componentValues(syl);
+  return syllableParts(syl).map(function (part) {
+    var same = counterpartValue(values, part) === counterpartValue(otherValues, part);
+    return '<span class="' + (same ? okClass : badClass) + '">' + esc(part.text) + '</span>';
+  }).join('');
+}
+
+/**
+ * 逐个音节、逐个组件对比，返回两行 HTML（用户写的 / 正确答案）。
+ * 末尾的 ། 不参与展示——它是标点，不是拼写。
+ */
+function componentDiff(userSyllables, targetSyllables, autoJoin) {
+  var users = userSyllables || [];
+  var targets = targetSyllables || [];
+  var sep = autoJoin === false ? '' : TSHEG;
+  var n = Math.max(users.length, targets.length);
+  var userHtml = [], targetHtml = [];
+
+  for (var i = 0; i < n; i++) {
+    var mine = users[i];
+    var theirs = targets[i];
+    userHtml.push(mine
+      ? partsHtml(mine, componentValues(theirs), 'c-ok', 'c-bad')
+      : '');
+    targetHtml.push(theirs
+      ? partsHtml(theirs, componentValues(mine), 'c-ok', 'c-miss')
+      : '');
+  }
+  return { user: userHtml.join(sep), target: targetHtml.join(sep) };
 }
 
 function esc(s) {
@@ -11314,7 +11389,8 @@ function gradeZh2Bo() {
   var w = session.current;
   var userRaw = composeWord(answers, w.autoJoin !== false, w.trailingShad !== false);
   var correct = normalizeForCompare(userRaw) === normalizeForCompare(w.tibetan);
-  finishAnswer(correct, userRaw, w);
+  // 把用户拼出来的组件也传下去——判错时要按组件标色，只靠合成后的文本没法定
+  finishAnswer(correct, userRaw, w, answers.slice());
 }
 
 function gradeBo2Zh() {
@@ -11323,7 +11399,7 @@ function gradeBo2Zh() {
   finishAnswer(meaningMatches(typed, w.meaning), typed, w);
 }
 
-function finishAnswer(correct, userRaw, w) {
+function finishAnswer(correct, userRaw, w, userSyllables) {
   // 正确率只算每个词的**第一次**作答：同一个词后面重来几次都不再计分，
   // 否则一个难词会把自己的正确率压低好几倍。
   var counted = !session.attempted[w.id];
@@ -11333,6 +11409,7 @@ function finishAnswer(correct, userRaw, w) {
   }
   session.answered += 1;
   session.lastUserRaw = userRaw || '';
+  session.lastUserSyllables = userSyllables || [];
   session.lastCounted = counted;   // 改判时要靠它决定动不动统计
   markAnswer(w.id, correct);
 
@@ -11343,7 +11420,7 @@ function finishAnswer(correct, userRaw, w) {
     session.missedIds[w.id] = true;
   }
 
-  renderFeedback(correct, userRaw, w);
+  renderFeedback(correct, userRaw, w, userSyllables);
 }
 
 /** 藏译汉判错时的「其实我答对了」：把这次答错改成答对。
@@ -11375,10 +11452,10 @@ function overrideToCorrect() {
   }
   delete session.missedIds[w.id];
 
-  renderFeedback(true, session.lastUserRaw, w);
+  renderFeedback(true, session.lastUserRaw, w, session.lastUserSyllables);
 }
 
-function renderFeedback(correct, userRaw, w) {
+function renderFeedback(correct, userRaw, w, userSyllables) {
   var fb = document.getElementById('feedback-area');
   fb.classList.remove('hidden');
   fb.className = 'feedback ' + (correct ? 'ok' : 'err');
@@ -11390,7 +11467,7 @@ function renderFeedback(correct, userRaw, w) {
   fb.appendChild(title);
 
   if (settings.mode === 'zh2bo') {
-    var diff = charDiff(normalizeForCompare(userRaw), normalizeForCompare(w.tibetan));
+    var diff = componentDiff(userSyllables, w.components, w.autoJoin !== false);
     var box = document.createElement('div');
     if (correct) {
       box.innerHTML = '<div class="diff">' + diff.target + '</div>';
@@ -11665,6 +11742,9 @@ window.__zwjyMemory = {
   meaningAlternatives: meaningAlternatives,
   normalizeChinese: normalizeChinese,
   meaningMatches: meaningMatches,
+  syllableParts: syllableParts,
+  componentValues: componentValues,
+  componentDiff: componentDiff,
   SUBJOINED_MAP: SUBJOINED_MAP,
   SUBJOINED_TAIL: SUBJOINED_TAIL,
   ROOTS: ROOTS, SUPERSCRIPTS: SUPERSCRIPTS, SUBJOINED: SUBJOINED,

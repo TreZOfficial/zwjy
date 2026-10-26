@@ -885,6 +885,24 @@ def test_export_falls_back_on_invalid_tibetan_size(client, bad):
     assert tibetan_szcs(response) == "28"
 
 
+def test_export_accepts_dictionary_order(client):
+    """导出页新增的「按藏文词典序」要能选中并生效。"""
+    client.post("/words", data=form_payload())
+    response = client.post("/export/docx", data={
+        "scope": "all", "order": "dict", "title": "", "include_meaning": "on",
+        "q": "", "tag": "", "ids": "", "seed": "", "layout": "columns",
+        "column_count": "3", "landscape": "on",
+    })
+    assert response.status_code == 200
+    assert "vocabulary_dictionary.docx" in response.headers["content-disposition"]
+
+
+def test_export_page_offers_dictionary_order(client):
+    page = client.get("/export").text
+    assert 'value="dict"' in page
+    assert "按藏文词典序" in page
+
+
 def test_export_falls_back_on_unknown_layout(client):
     client.post("/words", data=form_payload())
     response = client.post("/export/docx", data={

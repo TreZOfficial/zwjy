@@ -42,6 +42,8 @@ from docx.shared import Cm, Pt
 from docx.table import Table
 from docx.text.paragraph import Paragraph
 
+from tibetan import dictionary_sort_key
+
 # ---------------------------------------------------------------------------
 # 字体常量
 # ---------------------------------------------------------------------------
@@ -64,10 +66,16 @@ LATIN_FONT = "Times New Roman"
 CONTENT_WIDTH_CM = 16.0
 TIBETAN_COLUMN_CM = 7.0
 
-#: 顺序导出 / 乱序导出
+#: 顺序导出 / 乱序导出 / 按传统藏文词典序
 ORDER_SEQUENTIAL = "sequential"
 ORDER_RANDOM = "random"
-ORDER_LABELS = {ORDER_SEQUENTIAL: "顺序", ORDER_RANDOM: "乱序"}
+#: 基字 ཀ→ཨ，基字相同的再依次比前加字、上加字、下加字、后加字、再后加字、元音
+ORDER_DICT = "dict"
+ORDER_LABELS = {
+    ORDER_SEQUENTIAL: "顺序",
+    ORDER_RANDOM: "乱序",
+    ORDER_DICT: "按藏文词典序（基字 ཀ→ཨ）",
+}
 
 #: 排版方式。默认分栏——背词表按栏排比按表格排更像一份词汇表，
 #: 而且一页能放下更多词条。
@@ -260,10 +268,14 @@ class ExportOptions:
 def apply_order(rows: Sequence, options: ExportOptions) -> list:
     """按导出设置排列词条顺序。
 
-    * 顺序导出：保持传入顺序（调用方按创建时间升序取出，即录入顺序）。
+    * 顺序导出：保持传入顺序（调用方按手工顺序取出）。
     * 乱序导出：洗牌；填了随机种子则结果可复现，留空则每次不同。
+    * 词典序：基字 ཀ→ཨ，基字相同的再按前加字、上加字、下加字、
+      后加字、再后加字、元音依次比较（见 :func:`tibetan.dictionary_sort_key`）。
     """
     items = list(rows)
+    if options.order == ORDER_DICT:
+        return sorted(items, key=lambda word: dictionary_sort_key(word.word_components))
     if options.order != ORDER_RANDOM:
         return items
 

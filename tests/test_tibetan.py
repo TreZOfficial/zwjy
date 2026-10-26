@@ -37,6 +37,7 @@ from tibetan import (
     WordComponents,
     allowed_components,
     append_trailing_shad,
+    dictionary_sort_key,
     strip_trailing_shad,
     compose_syllable,
     compose_word,
@@ -869,6 +870,92 @@ def test_every_allowed_option_is_warning_free():
             for value in allowed["subjoined_tail"]:
                 probe = replace(base, subjoined=[*base.subjoined, value])
                 assert validate_syllable(probe) == [], f"{base} + 第二层={value}"
+
+
+# ---------------------------------------------------------------------------
+# 传统藏文词典序
+# ---------------------------------------------------------------------------
+def _sorted_texts(syllables):
+    ordered = sorted(syllables, key=dictionary_sort_key)
+    return [compose_syllable(s) for s in ordered]
+
+
+def test_dictionary_sort_puts_roots_in_alphabetical_order():
+    """先比基字，ཀ→ཨ。"""
+    syllables = [Syllable(root=c) for c in ("ཨ", "ཀ", "མ", "ག")]
+    assert _sorted_texts(syllables) == ["ཀ", "ག", "མ", "ཨ"]
+
+
+def test_dictionary_sort_compares_prefix_after_the_root():
+    """基字相同，再比前加字；没有前加字的排最前。"""
+    syllables = [
+        Syllable(prefix="བ", root="ཀ"),
+        Syllable(root="ཀ"),
+        Syllable(prefix="ད", root="ཀ"),
+        Syllable(prefix="ག", root="ཀ"),
+        Syllable(root="ཁ"),
+    ]
+    assert _sorted_texts(syllables) == ["ཀ", "གཀ", "དཀ", "བཀ", "ཁ"]
+
+
+def test_dictionary_sort_then_superscript_subjoined_suffix2_vowel():
+    """基字和前加字都一样时，依次比上加字、下加字、后加字、再后加字、元音。"""
+    # 上加字：ར(24) < ལ(25) < ས(27)
+    supers = [
+        Syllable(superscript="ས", root="ཀ"),
+        Syllable(superscript="ར", root="ཀ"),
+        Syllable(superscript="ལ", root="ཀ"),
+    ]
+    assert _sorted_texts(supers) == ["རྐ", "ལྐ", "སྐ"]
+
+    # 下加字：没有 < ཡ(23) < ར(24)
+    subs = [
+        Syllable(root="ཀ", subjoined=["ར"]),
+        Syllable(root="ཀ"),
+        Syllable(root="ཀ", subjoined=["ཡ"]),
+    ]
+    assert _sorted_texts(subs) == ["ཀ", "ཀྱ", "ཀྲ"]
+
+    # 后加字：没有 < ག < ས
+    suffixes = [
+        Syllable(root="ཀ", suffix="ས"),
+        Syllable(root="ཀ", suffix="ག"),
+        Syllable(root="ཀ"),
+    ]
+    assert _sorted_texts(suffixes) == ["ཀ", "ཀག", "ཀས"]
+
+    # 再后加字：没有 < ས
+    suffix2s = [
+        Syllable(root="ཀ", suffix="ག", suffix2="ས"),
+        Syllable(root="ཀ", suffix="ག"),
+    ]
+    assert _sorted_texts(suffix2s) == ["ཀག", "ཀགས"]
+
+    # 元音：默认 a 在最前，然后 ི ུ ེ ོ
+    vowels = [Syllable(root="ཀ", vowel=v) for v in ("ོ", "ི", "ུ", "ེ")]
+    vowels.append(Syllable(root="ཀ"))
+    assert _sorted_texts(vowels) == ["ཀ", "ཀི", "ཀུ", "ཀེ", "ཀོ"]
+
+
+def test_dictionary_sort_is_not_unicode_order():
+    """码点序会把带前加字的词拆散；词典序按基字归类。
+
+    按 Unicode 码点，དཀ（U+0F51…）排在 ཀ（U+0F40）之后很远；
+    按词典序，它和 ཀ 属于同一类，紧跟其后。
+    """
+    syllables = [Syllable(prefix="ད", root="ཀ"), Syllable(root="ཁ")]
+    assert _sorted_texts(syllables) == ["དཀ", "ཁ"]
+
+
+def test_dictionary_sort_compares_syllable_by_syllable():
+    """多音节词：先比第一个音节，完全相同的再比第二个。"""
+    a = WordComponents(
+        syllables=[Syllable(root="ཉ", vowel="ི"), Syllable(root="ཀ")], trailing_shad=False)
+    b = WordComponents(
+        syllables=[Syllable(root="ཉ", vowel="ི"), Syllable(root="མ")], trailing_shad=False)
+    c = WordComponents(syllables=[Syllable(root="མ")], trailing_shad=False)
+    ordered = sorted([b, c, a], key=dictionary_sort_key)
+    assert [compose_word(w) for w in ordered] == ["ཉི་ཀ", "ཉི་མ", "མ"]
 
 
 # ---------------------------------------------------------------------------

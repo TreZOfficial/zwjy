@@ -436,7 +436,56 @@ def compose_word(
 
 
 # ---------------------------------------------------------------------------
-# 五、合法性校验
+# 五、传统藏文词典序
+# ---------------------------------------------------------------------------
+#: 三十个基字的先后（就是传统字母表 ཀ→ཨ 的顺序），也是所有组件的比较顺序。
+_ROOT_RANK: dict[str, int] = {letter: index for index, letter in enumerate(ROOTS)}
+
+#: 四个元音的先后
+_VOWEL_RANK: dict[str, int] = {letter: index for index, letter in enumerate(VOWELS)}
+
+#: 缺失的组件排在最前 —— 「没有」先于「有」。
+_ABSENT_RANK: int = -1
+
+
+def _letter_rank(letter: str) -> int:
+    return _ROOT_RANK.get(letter, _ABSENT_RANK)
+
+
+def dictionary_sort_key(syllables: Iterable[Syllable] | WordComponents) -> tuple:
+    """生成传统藏文词典序的排序键。
+
+    顺序：先比**基字**（ཀ→ཨ）；基字相同再依次比**前加字、上加字、
+    下加字、后加字、再后加字、元音**，每一项同样按 ཀ→ཨ 的顺序。
+    缺失的组件排在最前。
+
+    注意这不是 Unicode 码点序——码点序会把 ཀ 后面所有「带前加字」的词
+    拆散。真正的词典序要先看基字，忽略前加字与上加字。
+
+    多音节词逐音节比较：先比第一个音节，完全相同的再比第二个。
+    """
+    if isinstance(syllables, Syllable):
+        syllables = [syllables]
+    elif isinstance(syllables, WordComponents):
+        syllables = syllables.syllables
+
+    keys = []
+    for syllable in syllables:
+        keys.append((
+            _letter_rank(syllable.root),
+            _letter_rank(syllable.prefix),
+            _letter_rank(syllable.superscript),
+            # 下加字可以叠多层，逐层比
+            tuple(_letter_rank(letter) for letter in syllable.subjoined),
+            _letter_rank(syllable.suffix),
+            _letter_rank(syllable.suffix2),
+            _VOWEL_RANK.get(syllable.vowel, _ABSENT_RANK),
+        ))
+    return tuple(keys)
+
+
+# ---------------------------------------------------------------------------
+# 六、合法性校验
 # ---------------------------------------------------------------------------
 # 下面这套规则属于「**常用搭配规则集**」，目的是在用户拼出明显不合藏文
 # 正字法的组合时给出提醒。它不是完整的藏文正字法校验器：

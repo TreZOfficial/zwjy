@@ -44,7 +44,7 @@ dukpy = pytest.importorskip("dukpy", reason="跑 JS 需要 dukpy（pip install d
 
 import js_harness as H  # noqa: E402
 
-WORD_BANK_JSON = BASE_DIR / "data" / "词库1020.json"
+WORD_BANK_JSON = BASE_DIR / "data" / "期末词汇库.json"
 
 # 真实词库的条数不写死在这里：换词库（期中 -> 期末）时不用回来改测试。
 # 真正要钉死的是「页面里嵌的 == 这份 JSON」，条数只是顺带核对一下。
@@ -312,6 +312,101 @@ def test_storage_key_is_namespaced_by_bank(js):
     # 键名是拼出来的，不是写死的常量
     assert "STORE_KEY = 'zwjy-memory:v1:' +" in script or \
            'STORE_KEY = "zwjy-memory:v1:" +' in script
+
+
+# ---------------------------------------------------------------------------
+# 汉译藏的判题反馈：按组件比对
+# ---------------------------------------------------------------------------
+def _syl(**kwargs) -> dict:
+    base = {"prefix": "", "superscript": "", "root": "", "subjoined": [],
+            "vowel": "", "suffix": "", "suffix2": ""}
+    base.update(kwargs)
+    return base
+
+
+def _spans(html: str) -> list[tuple[str, str]]:
+    """把 diff 里的 <span class="c-xx">…</span> 解析成 [(类名, 文本)]。"""
+    return re.findall(r'<span class="(c-ok|c-bad|c-miss)">([^<]*)</span>', html)
+
+
+def _diff(interp, user, target, auto_join=True):
+    payload = "JSON.stringify(window.__zwjyMemory.componentDiff(%s, %s, %s))" % (
+        json.dumps(user, ensure_ascii=False),
+        json.dumps(target, ensure_ascii=False),
+        "true" if auto_join else "false",
+    )
+    return json.loads(interp.evaljs(payload))
+
+
+def test_component_diff_does_not_misalign_when_a_component_is_missing(js):
+    """缺少上加字时，剩下的基字和元音不能被标错。
+
+    这正是老做法的毛病：逐字比对会因为少了一个字符而整体错位，
+    把用户写对的 ུ 标红、把错位后碰巧相同的字符标绿。
+    正确目标 སྐུ（上加字 ས + 基字 ཀ + 元音 ུ），用户只拼了 ཀུ。
+    """
+    target = [_syl(superscript="ས", root="ཀ", vowel="ུ")]
+    user = [_syl(root="ཀ", vowel="ུ")]
+    diff = _diff(js, user, target)
+
+    # 用户那行：基字和元音都对
+    assert _spans(diff["user"]) == [("c-ok", "ཀ"), ("c-ok", "ུ")]
+    # 答案那行：只有上加字标成缺失，基字（下加形式）和元音仍然是对上的
+    assert _spans(diff["target"]) == [
+        ("c-miss", "ས"), ("c-ok", "ྐ"), ("c-ok", "ུ"),
+    ]
+
+
+def test_component_diff_marks_only_the_wrong_root(js):
+    target = [_syl(root="ག", vowel="ོ", suffix="ད")]
+    user = [_syl(root="ཀ", vowel="ོ", suffix="ད")]
+    diff = _diff(js, user, target)
+
+    assert _spans(diff["user"]) == [
+        ("c-bad", "ཀ"), ("c-ok", "ོ"), ("c-ok", "ད"),
+    ]
+    assert _spans(diff["target"]) == [
+        ("c-miss", "ག"), ("c-ok", "ོ"), ("c-ok", "ད"),
+    ]
+
+
+def test_component_diff_handles_subjoined_layers(js):
+    """下加字按层比较：多叠的那一层单独标出来。"""
+    target = [_syl(root="ད", subjoined=["ར", "ཝ"])]      # དྲྭ
+    user = [_syl(root="ད", subjoined=["ར"])]            # དྲ
+    diff = _diff(js, user, target)
+
+    assert _spans(diff["user"]) == [("c-ok", "ད"), ("c-ok", "ྲ")]
+    assert _spans(diff["target"]) == [
+        ("c-ok", "ད"), ("c-ok", "ྲ"), ("c-miss", "ྭ"),
+    ]
+
+
+def test_component_diff_keeps_each_syllable_independent(js):
+    """第一个音节多写了一个组件，第二个音节的对错不受影响。"""
+    target = [_syl(root="ཉ", vowel="ི"), _syl(root="མ")]
+    user = [_syl(root="ཉ", vowel="ི", suffix="ག"), _syl(root="མ")]
+    diff = _diff(js, user, target)
+
+    # 第二个音节照旧全对
+    assert _spans(diff["user"])[3:] == [("c-ok", "མ")]
+    # 第一个音节的 ག 是多写的
+    assert ("c-bad", "ག") in _spans(diff["user"])
+
+
+def test_component_diff_marks_everything_when_nothing_was_entered(js):
+    """用户一个音节都没拼：答案整行标成缺失，用户那行是空的。"""
+    target = [_syl(root="མ", vowel="ི")]
+    diff = _diff(js, [], target)
+    assert diff["user"] == ""
+    assert _spans(diff["target"]) == [("c-miss", "མ"), ("c-miss", "ི")]
+
+
+def test_component_diff_joins_syllables_by_the_auto_join_setting(js):
+    target = [_syl(root="ཉ", vowel="ི"), _syl(root="མ")]
+    user = [_syl(root="ཉ", vowel="ི"), _syl(root="མ")]
+    assert "་" in _diff(js, user, target, auto_join=True)["user"]
+    assert "་" not in _diff(js, user, target, auto_join=False)["user"]
 
 
 # ---------------------------------------------------------------------------

@@ -19,11 +19,13 @@ from docx import Document
 from docx.oxml.ns import qn
 
 import models
+from tibetan import Syllable, WordComponents, compose_word
 from export_docx import (
     DEFAULT_TIBETAN_FONT,
     DEFAULT_TIBETAN_SIZE,
     LAYOUT_COLUMNS,
     LAYOUT_TABLE,
+    ORDER_DICT,
     ORDER_RANDOM,
     ORDER_SEQUENTIAL,
     TIBETAN_SIZE_CHOICES,
@@ -191,6 +193,36 @@ def test_tibetan_run_sets_szcs():
         assert szCs is not None, "缺少 w:szCs，Word 会用默认字号渲染藏文"
         # w:szCs 的单位是半磅
         assert szCs.get(qn("w:val")) == "32"
+
+
+def test_dictionary_order_sorts_by_root_then_components():
+    """词典序导出：基字 ཀ→ཨ，基字相同的再按前加字、上加字… 比较。"""
+
+    def word(*syllables) -> models.Word:
+        components = WordComponents(syllables=list(syllables), trailing_shad=False)
+        return models.Word(tibetan=compose_word(components), components=components.to_json())
+
+    rows = [
+        word(Syllable(root="ཁ")),
+        word(Syllable(prefix="བ", root="ཀ")),
+        word(Syllable(root="ཀ")),
+        word(Syllable(prefix="ད", root="ཀ")),
+        word(Syllable(root="ཨ")),
+    ]
+    ordered = apply_order(rows, ExportOptions(order=ORDER_DICT))
+    assert [w.tibetan for w in ordered] == ["ཀ", "དཀ", "བཀ", "ཁ", "ཨ"]
+
+
+def test_dictionary_order_does_not_shuffle():
+    """词典序是确定的：同样的输入跑两遍结果一样。"""
+    rows = []
+    for root in ("མ", "ཀ", "ས"):
+        components = WordComponents(syllables=[Syllable(root=root)], trailing_shad=False)
+        rows.append(models.Word(tibetan=compose_word(components), components=components.to_json()))
+    options = ExportOptions(order=ORDER_DICT)
+    first = [w.tibetan for w in apply_order(rows, options)]
+    second = [w.tibetan for w in apply_order(rows, options)]
+    assert first == second == ["ཀ", "མ", "ས"]
 
 
 def test_tibetan_runs_are_not_bold():

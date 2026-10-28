@@ -38,6 +38,8 @@ from tibetan import (
     allowed_components,
     append_trailing_shad,
     dictionary_sort_key,
+    final_letter,
+    has_stack,
     strip_trailing_shad,
     compose_syllable,
     compose_word,
@@ -163,6 +165,40 @@ def test_trailing_shad_follows_the_last_letter():
     # 后加字是 ག 的也一样
     assert word("ཀ", vowel="ི", suffix="ག") == "ཀིག"
     assert word("ཐ", suffix="ང") == "ཐང་།"
+
+    # 结尾带元音符号（裸基字）：规则看的是**字母**，不是最后一个码点
+    assert word("ག", vowel="ོ") == "གོ"        # 不是 གོ།
+    assert word("ཀ", vowel="ི") == "ཀི"        # 不是 ཀི།
+    assert word("ང", vowel="ོ") == "ངོ་།"      # 不是 ངོ།
+
+    # 但带上加字/下加字的不适用这套规则，一律加 །
+    assert word("ཀ", superscript="ས", vowel="ུ") == "སྐུ།"
+    assert word("ང", superscript="ལ") == "ལྔ།"
+    assert word("ག", superscript="ས", vowel="ོ") == "སྒོ།"
+    assert word("ཀ", superscript="ས", vowel="ེ") == "སྐེ།"
+    # 下加字同理
+    assert word("ག", subjoined=["ར", "ཝ"]) == "གྲྭ།"
+
+
+def test_has_stack_detects_superscript_and_subjoined():
+    """最后一个音节有上加字/下加字时，基字会写成下加形式。"""
+    assert has_stack("སྐུ") is True          # 上加字 ས
+    assert has_stack("ལྔ") is True           # 上加字 ལ
+    assert has_stack("དྲྭ") is True          # 下加字 ྲ + ྭ
+    assert has_stack("གོ") is False          # 裸基字 + 元音
+    assert has_stack("ཀྲུང་གོ") is False      # 只有**最后**一个音节算
+    assert has_stack("ཀྲུང") is True         # 这个音节的基字带 ྲ
+    assert has_stack("") is False
+
+
+def test_final_letter_skips_vowels_and_subjoined_forms():
+    """判断词尾字母时的两个坑。"""
+    assert final_letter("གོ") == "ག"          # 跳过元音
+    assert final_letter("ངོ") == "ང"
+    assert final_letter("སྐུ") == "ཀ"         # 下加形式 ྐ → ཀ
+    assert final_letter("ལྔ") == "ང"          # 下加形式 ྔ → ང
+    assert final_letter("དྲྭ") == "ཝ"         # 双层下加字，最后一个字母是 ྭ → ཝ
+    assert final_letter("") == ""
 
 
 def test_trailing_shad_can_be_turned_off():

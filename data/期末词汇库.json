@@ -1,7 +1,7 @@
 {
   "format": "zwjy-tibetan-vocabulary",
   "version": 2,
-  "exported_at": "2026-10-20 13:35:43",
+  "exported_at": "2026-10-28 21:55:33",
   "count": 350,
   "words": [
     {
@@ -1222,7 +1222,7 @@
       "updated_at": "2026-09-30 14:28:41"
     },
     {
-      "tibetan": "གོ།",
+      "tibetan": "གོ",
       "components": {
         "version": 2,
         "auto_join": true,
@@ -1249,7 +1249,7 @@
       "updated_at": "2026-09-30 14:28:52"
     },
     {
-      "tibetan": "ངུ།",
+      "tibetan": "ངུ་།",
       "components": {
         "version": 2,
         "auto_join": true,
@@ -1303,7 +1303,7 @@
       "updated_at": "2026-09-30 14:29:45"
     },
     {
-      "tibetan": "ངོ།",
+      "tibetan": "ངོ་།",
       "components": {
         "version": 2,
         "auto_join": true,
@@ -2392,7 +2392,7 @@
       "updated_at": "2026-09-30 14:41:34"
     },
     {
-      "tibetan": "ལུ་གུ།",
+      "tibetan": "ལུ་གུ",
       "components": {
         "version": 2,
         "auto_join": true,
@@ -2752,7 +2752,7 @@
       "updated_at": "2026-09-30 14:45:04"
     },
     {
-      "tibetan": "ཡི་གེ།",
+      "tibetan": "ཡི་གེ",
       "components": {
         "version": 2,
         "auto_join": true,
@@ -6170,7 +6170,7 @@
       "updated_at": "2026-09-30 17:52:26"
     },
     {
-      "tibetan": "སྨྱུ་གུ།",
+      "tibetan": "སྨྱུ་གུ",
       "components": {
         "version": 2,
         "auto_join": true,
@@ -6208,7 +6208,7 @@
       "updated_at": "2026-09-30 17:52:53"
     },
     {
-      "tibetan": "མྱུ་གུ།",
+      "tibetan": "མྱུ་གུ",
       "components": {
         "version": 2,
         "auto_join": true,
@@ -6284,7 +6284,7 @@
       "updated_at": "2026-09-30 17:53:50"
     },
     {
-      "tibetan": "ཀྲུང་གོ།",
+      "tibetan": "ཀྲུང་གོ",
       "components": {
         "version": 2,
         "auto_join": true,
@@ -6476,7 +6476,7 @@
       "updated_at": "2026-09-30 17:57:30"
     },
     {
-      "tibetan": "ཕྲུ་གུ།",
+      "tibetan": "ཕྲུ་གུ",
       "components": {
         "version": 2,
         "auto_join": true,
@@ -9717,7 +9717,7 @@
       "updated_at": "2026-10-15 19:22:39"
     },
     {
-      "tibetan": "མིག་སྐྱག",
+      "tibetan": "མིག་སྐྱག།",
       "components": {
         "version": 2,
         "auto_join": true,
@@ -9791,7 +9791,7 @@
       "updated_at": "2026-10-15 19:23:48"
     },
     {
-      "tibetan": "ཤིང་སྡོང་།",
+      "tibetan": "ཤིང་སྡོང།",
       "components": {
         "version": 2,
         "auto_join": true,
@@ -9827,7 +9827,7 @@
       "updated_at": "2026-10-15 19:24:44"
     },
     {
-      "tibetan": "སློབ་ཕྲུག",
+      "tibetan": "སློབ་ཕྲུག།",
       "components": {
         "version": 2,
         "auto_join": true,
@@ -10145,7 +10145,7 @@
       "updated_at": "2026-10-15 19:28:47"
     },
     {
-      "tibetan": "དགུ།",
+      "tibetan": "དགུ",
       "components": {
         "version": 2,
         "auto_join": true,
@@ -11003,7 +11003,7 @@
       "updated_at": "2026-10-16 00:27:57"
     },
     {
-      "tibetan": "མདོ་སྦུག",
+      "tibetan": "མདོ་སྦུག།",
       "components": {
         "version": 2,
         "auto_join": true,
@@ -12073,7 +12073,7 @@
       "updated_at": "2026-10-20 13:31:02"
     },
     {
-      "tibetan": "སློབ་འབྲིང་།",
+      "tibetan": "སློབ་འབྲིང།",
       "components": {
         "version": 2,
         "auto_join": true,

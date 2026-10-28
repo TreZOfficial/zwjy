@@ -52,6 +52,8 @@ from tibetan import (  # noqa: E402
     Syllable,
     WordComponents,
     compose_word,
+    final_letter,
+    has_stack,
     normalize_text,
 )
 
@@ -327,10 +329,12 @@ def check_entries(
                 entry = dict(entry, tibetan=composed)
 
         # 只有「按规则该有收尾标点、却没有」才算异常。
-        # ཀ / ག 结尾的词语本来就不写 །，别把它们算进去。
+        # 裸基字 ཀ / ག 结尾（含带元音的 གོ）本来就不写 །；
+        # 但带上加字/下加字的（སྐུ、ལྔ）一律要带 །。
         text = entry["tibetan"]
-        if text and not text.endswith(SHAD) and text[-1] not in SHAD_ABSENT_AFTER:
-            report["no_shad"] += 1
+        if text and not text.endswith(SHAD):
+            if has_stack(text) or final_letter(text) not in SHAD_ABSENT_AFTER:
+                report["no_shad"] += 1
 
         for tag in entry["tags"]:
             report["tags"][tag] = report["tags"].get(tag, 0) + 1

@@ -85,10 +85,33 @@
   const SHAD_ABSENT_AFTER = ['ཀ', 'ག'];
   const TSHEG_BEFORE_SHAD_AFTER = ['ང'];
 
+  /** 取词尾的字母：跳过结尾的元音符号，并把下加形式换算回正常形式。
+   *  གོ 的字母是 ག；སྐུ 剥掉 ུ 后是 ྐ，要换算回 ཀ。 */
+  function finalLetter(text) {
+    const stripped = String(text || '').replace(/[ཱ-ཽ]+$/, '');
+    if (!stripped) return '';
+    const last = stripped.charAt(stripped.length - 1);
+    const code = last.charCodeAt(0);
+    if (code >= 0x0F90 && code <= 0x0FBC) return String.fromCharCode(code - 0x50);
+    return last;
+  }
+
+  /** 最后一个音节里有没有上加字/下加字（基字会写成下加形式 U+0F90–U+0FBC）。
+   *  有的话一律加 །，不适用 ཀ/ག/ང 的规则：སྐུ། ལྔ། སྒོ། */
+  function hasStack(text) {
+    const tail = String(text || '').split('་').pop();
+    for (let i = 0; i < tail.length; i += 1) {
+      const code = tail.charCodeAt(i);
+      if (code >= 0x0F90 && code <= 0x0FBC) return true;
+    }
+    return false;
+  }
+
   /** 按词尾字母决定怎么收尾（tibetan.append_trailing_shad 的镜像） */
   function appendTrailingShad(text) {
     if (!text) return text;
-    const last = text.charAt(text.length - 1);
+    if (hasStack(text)) return text + '།';
+    const last = finalLetter(text);
     if (SHAD_ABSENT_AFTER.indexOf(last) !== -1) return text;
     if (TSHEG_BEFORE_SHAD_AFTER.indexOf(last) !== -1) return text + '་།';
     return text + '།';

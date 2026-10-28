@@ -188,10 +188,48 @@ TSHEG_BEFORE_SHAD_AFTER: frozenset[str] = frozenset("ང")
 #: 再保存一次就会变成 ང་་།。
 _TRAILING_SHAD_RE = re.compile(r"(?:་)?།+$")
 
+#: 词尾的元音符号（U+0F71–U+0F7D）。判断「词尾字母」时要跳过它们——
+#: ཀི 的词尾字母是 ཀ，不是最后一个码点 ི。
+_TRAILING_VOWEL_RE = re.compile(r"[ཱ-ཽ]+$")
+
+
+def final_letter(text: str) -> str:
+    """取词尾的**字母**，跳过元音符号、并把下加形式换算回正常形式。
+
+    两层坑都要绕开，否则规则只能生效一半：
+
+    * 结尾带元音：`གོ` 的词尾字母是 `ག`，不是最后一个码点 `ོ`；
+    * 有上加字时基字写成了下加形式：`སྐུ` 剥掉元音后是 `ྐ`，
+      要换算回 `ཀ` 才能和规则表对上。
+
+    只看最后一个字符，这两类词会被整个漏掉。
+    """
+    stripped = _TRAILING_VOWEL_RE.sub("", text or "")
+    if not stripped:
+        return ""
+    last = stripped[-1]
+    code = ord(last)
+    if 0x0F90 <= code <= 0x0FBC:        # 下加形式 -> 正常形式
+        return chr(code - SUBJOINED_OFFSET)
+    return last
+
 
 def strip_trailing_shad(text: str) -> str:
     """去掉词尾已有的 །（连同它前面那个 ་）。"""
     return _TRAILING_SHAD_RE.sub("", text)
+
+
+def has_stack(text: str) -> bool:
+    """最后一个音节里有没有上加字或下加字。
+
+    有的话基字一定写成了下加形式（U+0F90–U+0FBC），从文本就能看出来：
+    `སྐུ`（上加字 ས）里的 `ྐ`、`ལྔ`（上加字 ལ）里的 `ྔ`、`དྲྭ` 里的 `ྲ ྭ` 都算。
+
+    这类音节**不适用** ཀ/ག/ང 的收尾规则，一律加 །——
+    `སྐུ།`、`ལྔ།`、`སྒོ།` 都是要带 ། 的。
+    """
+    tail = (text or "").rsplit(TSHEG, 1)[-1]
+    return any(0x0F90 <= ord(ch) <= 0x0FBC for ch in tail)
 
 
 def append_trailing_shad(text: str) -> str:
@@ -201,11 +239,19 @@ def append_trailing_shad(text: str) -> str:
     - 词尾是 ང：先补一个 ་，再补 །
     - 其余：直接补 །
 
+    「词尾字母」要跳过结尾的元音符号：`གོ` 算 `ག`、`ངོ` 算 `ང`。
+    只按最后一个字符判断的话，带元音的词会全部漏掉。
+
+    但**带上加字/下加字的不适用这套规则**——`སྐུ`、`ལྔ`、`སྒོ` 一律带 །
+    （见 :func:`has_stack`）。所以规则只作用于「裸基字（可带元音）」这种结尾。
+
     传进来的文本应当已经去掉过尾部的 ། 和 ་།，否则连着调用会越加越多。
     """
     if not text:
         return text
-    last = text[-1]
+    if has_stack(text):
+        return text + SHAD
+    last = final_letter(text)
     if last in SHAD_ABSENT_AFTER:
         return text
     if last in TSHEG_BEFORE_SHAD_AFTER:

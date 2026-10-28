@@ -110,6 +110,7 @@ def test_subjoined_maps_match_python(js):
     # 词尾标点按词尾字母定：ཀ/ག 不加、ང 加 ་།、其余加 །
     ("基字+元音+后加字（ག 结尾，不加标点）", blank(root="ཀ", vowel="ི", suffix="ག"), "ཀིག", ""),
     ("后缀 ང（先 ་ 再 །）", blank(root="ཐ", suffix="ང"), "ཐང", "་།"),
+    # 带上加字的音节不适用 ཀ/ག/ང 的规则，照常带 །
     ("上加字+基字+元音", blank(superscript="ས", root="ཀ", vowel="ུ"), "སྐུ", "།"),
     ("七组件齐全", blank(prefix="བ", superscript="ས", root="ག", subjoined=["ར"],
                         vowel="ུ", suffix="བ", suffix2="ས"), "བསྒྲུབས", "།"),
